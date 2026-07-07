@@ -1,4 +1,4 @@
-# Radar de Gastos Parlamentares (CEAP) — Trabalho Final MBA
+# Radar de Gastos Parlamentares (CEAP) — Trabalho Final MBA em Artificial Intelligence for Business referente a materia AI Applications
 
 ## Contexto
 
