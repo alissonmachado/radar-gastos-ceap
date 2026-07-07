@@ -1,4 +1,4 @@
-# Rascunho — Revisão da Literatura (para revisão antes de entrar no paper.qmd)
+# Revisão da Literatura
 
 O precedente direto deste trabalho, no mesmo domínio (gastos CEAP), é a
 **Operação Serenata de Amor** [@musskopf2016serenata]: projeto open-source
@@ -29,15 +29,12 @@ para medir concentração de gasto por deputado.
 Para avaliar a concordância entre a classificação do LLM e a rotulagem
 humana, usamos o **coeficiente kappa de Cohen** [@cohen1960coefficient],
 interpretado pela escala de referência de **Landis & Koch (1977)**
-[@landis1977measurement] — a mesma escala citada em `reports/evaluation_llm.md`
-ao descrever um kappa como "substancial".
+[@landis1977measurement] — na qual o kappa observado neste projeto (0,231,
+ver `reports/evaluation_llm.md`) cai na faixa "razoável" (0,21–0,40), não
+"substancial" (0,61–0,80).
 
 A etapa de classificação por LLM segue a documentação oficial da API
 Anthropic para saída estruturada via Pydantic [@anthropic_docs].
 
----
-
-**Pontos para você validar antes de eu inserir isso no paper.qmd:**
-1. O tom está adequado (nem elogioso demais nem crítico demais da Serenata de Amor)?
-2. Falta alguma referência que você considere obrigatória (ex.: algo citado em aula)?
-3. Quer que eu expanda esta seção ou mantenha como está (curta e direta)?
+Este texto foi incorporado, sem alterações de conteúdo, à seção "Revisão da
+Literatura" de `reports/paper/trabalho_final.qmd`.

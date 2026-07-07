@@ -1,0 +1,609 @@
+---
+lang: pt-BR
+bibliography: ../../referencias.bib
+format:
+  pdf:
+    pdf-engine: xelatex
+    toc: false
+    number-sections: true
+    geometry:
+      - margin=2.5cm
+    fontsize: 11pt
+    code-overflow: wrap
+    code-block-bg: "#F7F7F7"
+    code-block-border-left: false
+    highlight-style: github
+    fig-width: 8
+    fig-height: 4.5
+    fig-pos: H
+header-includes:
+  - |
+    \usepackage{etoolbox}
+    \usepackage{graphicx}
+    \usepackage{hyperref}
+    \usepackage{booktabs}
+    \usepackage{threeparttable}
+    \usepackage{caption}
+    \captionsetup[table]{skip=4pt}
+    \renewcommand{\maketitle}{}
+    \AtBeginEnvironment{Shaded}{\footnotesize}
+    \AtBeginEnvironment{verbatim}{\footnotesize}
+    \AtBeginEnvironment{longtable}{\small}
+    \AtBeginEnvironment{tabular}{\small}
+execute:
+  eval: true
+  echo: true
+  warning: false
+  message: false
+---
+
+```{=latex}
+\begin{titlepage}
+\thispagestyle{empty}
+\centering
+
+\includegraphics[width=4cm]{AM.png}
+
+\vspace{0.8cm}
+
+{\huge\bfseries Radar de Gastos da Cota Parlamentar: Priorização Estatística com Triagem por LLM e Validação Humana\par}
+
+\vspace{1em}
+
+{\Large Um pipeline CRISP-DM reprodutível para priorizar --- nunca acusar --- despesas atípicas da CEAP\par}
+
+\vspace{1.5em}
+
+{\large Alisson Machado --- MBA AI Applications\par}
+
+\vspace{0.5em}
+
+{\normalsize Julho de 2026\par}
+
+\vspace{0.2em}
+
+{\footnotesize Versão 1.0\par}
+
+\vspace{1.5em}
+
+\begin{minipage}{0.9\textwidth}
+\footnotesize
+\setlength{\parindent}{0pt}
+
+\noindent\textbf{Resumo.} A Cota para o Exercício da Atividade Parlamentar
+(CEAP) soma 284.845 despesas e R\$ 345.090.001,79 em 19 meses (jan/2025 a
+jul/2026) --- volume humanamente inauditável um lançamento de cada vez. Este
+trabalho constrói um pipeline CRISP-DM completo que (i) detecta padrões de
+gasto atípicos com três métodos estatísticos independentes e robustos
+(mediana/MAD, HHI de concentração de fornecedor), reduzindo 601 deputados a
+253 sinalizados por 2+ métodos e 26 pelos 3 simultaneamente; (ii) usa um LLM
+(Claude, via API Anthropic) com saída estruturada via Pydantic para
+classificar severidade e explicar cada caso em linguagem cidadã, sem nunca
+julgar reputação de pessoas; e (iii) avalia o LLM em múltiplas camadas ---
+consistência contra uma rubrica determinística, e concordância contra
+rotulagem humana genuína (Cohen's kappa = 0,231; acurácia 40\%). O achado
+central da avaliação é um viés de colapso do LLM: 70\% dos casos foram
+classificados como severidade "média" e 84\% como categoria "combinação",
+quase independentemente do sinal real --- não ruído aleatório, mas uma
+tendência sistemática a respostas "seguras". O custo médio de classificação
+por caso é de US\$ 0,00525 (modelo claude-sonnet-4-6), tornando a extensão
+do pipeline a milhares de casos financeiramente trivial. Todo número citado
+neste resumo também é gerado por um chunk de código executável no corpo
+deste documento.
+
+\smallskip
+\noindent\textbf{Palavras-chave:} Cota Parlamentar; Detecção de Anomalias;
+Modelos de Linguagem; Saída Estruturada; CRISP-DM.
+\end{minipage}
+
+\end{titlepage}
+```
+
+```{python}
+#| echo: false
+#| label: setup
+# Carregamento único de todos os artefatos reais do pipeline (data/processed/
+# e reports/), usado para citar números inline ao longo do texto. O código
+# completo de cada etapa é mostrado na seção Implementação.
+import json
+import sys
+from pathlib import Path
+
+import pandas as pd
+import matplotlib.pyplot as plt
+
+BASE_DIR = Path.cwd().parent.parent
+DATA_DIR = BASE_DIR / "data" / "processed"
+REPORTS_DIR = BASE_DIR / "reports"
+sys.path.insert(0, str(BASE_DIR / "src"))
+
+despesas = pd.read_parquet(DATA_DIR / "despesas_limpas.parquet")
+lista = pd.read_csv(REPORTS_DIR / "lista_priorizada.csv", encoding="utf-8-sig")
+outliers_cat = pd.read_csv(DATA_DIR / "outliers_categoria_pares.csv", encoding="utf-8-sig")
+concentracao = pd.read_csv(DATA_DIR / "concentracao_fornecedor.csv", encoding="utf-8-sig")
+picos = pd.read_csv(DATA_DIR / "picos_temporais.csv", encoding="utf-8-sig")
+triangulacao = pd.read_csv(DATA_DIR / "triangulacao_deputados.csv", encoding="utf-8-sig")
+rubrica = pd.read_csv(REPORTS_DIR / "rotulos_prelabel.csv", encoding="utf-8-sig")
+humanos = pd.read_csv(REPORTS_DIR / "rotulos_humanos.csv", encoding="utf-8-sig")
+triage = pd.read_csv(REPORTS_DIR / "triage_llm.csv", encoding="utf-8")
+custo = json.loads((REPORTS_DIR / "custo_llm_triage.json").read_text(encoding="utf-8"))
+
+n_despesas, n_colunas_raw = despesas.shape
+total_gasto = despesas["vlrLiquido"].sum()
+n_estornos = int(despesas["flag_estorno"].sum())
+n_sem_fornecedor = int((~despesas["fornecedor_identificado"]).sum())
+n_deputados_total = len(triangulacao)
+n_alta_confianca = int((triangulacao["n_metodos_distintos"] >= 2).sum())
+n_tres_metodos = int((triangulacao["n_metodos_distintos"] == 3).sum())
+n_lista_priorizada = len(lista)
+```
+
+# Introdução
+
+A Câmara dos Deputados publica diariamente os gastos da Cota para o
+Exercício da Atividade Parlamentar (CEAP). No recorte deste projeto (jan/2025
+a jul/2026), isso soma `{python} f"{n_despesas:,}"` despesas individuais e
+R\$ `{python} f"{total_gasto:,.2f}"` --- volume humanamente inauditável um
+lançamento de cada vez. Sem uma forma de priorizar, qualquer tentativa de
+fiscalização manual é inviável: cidadãos, jornalistas e órgãos de controle
+não têm como revisar centenas de milhares de linhas para decidir onde vale a
+pena olhar com mais atenção.
+
+O público-alvo deste trabalho é composto por três grupos: **cidadãos**
+interessados em acompanhar o uso da cota por seus representantes;
+**jornalistas** que precisam de pontos de partida concretos para reportagens
+de *accountability*; e **auditores/órgãos de controle** que já têm processo
+de fiscalização, mas se beneficiam de uma triagem prévia que aponte onde
+concentrar esforço.
+
+O objetivo é **priorizar, não acusar**. O pipeline não determina se uma
+despesa é irregular --- isso exige investigação humana, contexto e
+contraditório. O que este trabalho entrega é um ranking estatístico objetivo
+de casos que fogem do padrão esperado, complementado por uma camada de
+classificação e explicação em linguagem cidadã via LLM, sempre com saída
+estruturada e validada, para que a atenção limitada de quem fiscaliza seja
+alocada de forma mais eficiente.
+
+# Revisão da Literatura
+
+O precedente direto deste trabalho, no mesmo domínio (gastos CEAP), é a
+**Operação Serenata de Amor** [@musskopf2016serenata]: projeto open-source
+iniciado em 2016 por Irio Musskopf e Eduardo Cuducos que usa um robô de
+aprendizado de máquina ("Rosie") para calcular uma probabilidade de
+irregularidade em reembolsos da Cota Parlamentar e publicar os achados. Este
+trabalho se diferencia em três pontos: (i) usa detecção estatística robusta
+(mediana/MAD) como camada auditável antes de qualquer classificação, em vez
+de um único score de probabilidade; (ii) usa um LLM apenas para classificar
+e explicar em linguagem cidadã os casos já sinalizados estatisticamente ---
+nunca para decidir sozinho o que é atípico; e (iii) inclui triangulação
+entre métodos independentes e avaliação de concordância humano-LLM (Cohen's
+kappa) como camada explícita de validação, ausente na Rosie original.
+
+A camada estatística deste trabalho segue **Iglewicz & Hoaglin (1993)**
+[@iglewicz1993outliers]: mediana e desvio absoluto mediano (MAD) como
+medidas robustas de tendência central e dispersão, e o "modified z-score"
+(fator 0,6745) como regra prática para sinalizar outliers --- escolha
+deliberada por ser menos sensível a caudas longas do que média/desvio padrão
+clássicos, um problema documentado nos próprios dados de gasto parlamentar.
+
+Para medir concentração de gasto em fornecedor único, usamos o **Índice de
+Herfindahl-Hirschman (HHI)** [@hirschman1964paternity], originalmente uma
+medida de concentração de mercado em economia industrial, aqui reaproveitada
+para medir concentração de gasto por deputado.
+
+Para avaliar a concordância entre a classificação do LLM e a rotulagem
+humana, usamos o **coeficiente kappa de Cohen** [@cohen1960coefficient],
+interpretado pela escala de referência de **Landis & Koch (1977)**
+[@landis1977measurement].
+
+A etapa de classificação por LLM segue a documentação oficial da API
+Anthropic para saída estruturada via Pydantic [@anthropic_docs].
+
+# Metodologia e Dados
+
+## Fontes e volume
+
+Os dados vêm dos arquivos anuais públicos da Câmara
+(`https://www.camara.leg.br/cotas/Ano-{ano}.csv.zip`), anos 2025 (completo) e
+2026 (parcial, até julho). Nulos concentram-se em colunas legitimamente
+opcionais (`txtPassageiro`/`txtTrecho`, só preenchidas em passagens aéreas) e
+em duas peculiaridades tratadas explicitamente na preparação dos dados:
+`{python} f"{n_estornos:,}"` registros com `vlrLiquido` negativo (estornos
+reais, mantidos na soma) e `{python} f"{n_sem_fornecedor:,}"` registros sem
+fornecedor identificável (CNPJ genérico ou ausente, excluídos apenas do
+cálculo de concentração por fornecedor).
+
+## Custo estimado de tokens
+
+A etapa de classificação por LLM tem custo medido, não estimado por
+analogia: usando a API de contagem de tokens da Anthropic (gratuita) sobre
+os prompts reais enviados e as respostas reais recebidas para os
+`{python} custo['n_casos']` casos já classificados, o custo total foi de
+US\$ `{python} f"{custo['custo_total_usd']:.4f}"`, ou **US\$
+`{python} f"{custo['custo_medio_por_caso_usd']:.5f}"` por caso** (modelo
+`{python} custo['modelo']`, US\$ `{python} custo['preco_input_por_milhao_usd']`
+por milhão de tokens de input e US\$
+`{python} custo['preco_output_por_milhao_usd']` de output). A projeção
+linear para os `{python} n_alta_confianca` casos priorizados (2 ou mais
+métodos convergentes) é de aproximadamente US\$
+`{python} f"{custo['projecao_253_casos_usd']:.2f}"` --- tornando a extensão
+do pipeline financeiramente trivial.
+
+## Mapeamento ao CRISP-DM
+
+| Fase CRISP-DM | Entregável neste projeto |
+|---|---|
+| 1. Entendimento do Negócio | Problema, público-alvo e critério de sucesso (`reports/business_understanding.md`) |
+| 2. Entendimento dos Dados | Volume, tipos, nulos, custo de tokens (`reports/data_understanding.md`, acima) |
+| 3. Preparação dos Dados | Limpeza, tipagem, flags sem exclusão de linhas (`reports/data_preparation.md`) |
+| 4. Modelagem | 3 detectores estatísticos + baseline determinístico + LLM com schema fixo (`reports/modeling.md`) |
+| 5. Avaliação | Sensibilidade, triangulação, LLM vs. rubrica, LLM vs. humano (`reports/evaluation.md`, `reports/evaluation_llm.md`) |
+| 6. Implantação | Lista priorizada, relatório cidadão, este paper (`reports/relatorio_final.md`) |
+
+## Saída estruturada do LLM
+
+A classificação por LLM usa um schema Pydantic fixo (`TriageAnomalia`), que
+força os campos `severidade` (baixa/média/alta), `categoria_anomalia`,
+`explicacao_cidada` (máx. 280 caracteres, sem acusação) e
+`perguntas_auditoria` (2 a 3 perguntas verificáveis) --- ver código completo
+na seção Implementação. O LLM recebe apenas os casos **já** sinalizados
+estatisticamente; ele nunca decide sozinho o que é atípico.
+
+# Implementação
+
+## Configuração do ambiente
+
+```{python}
+#| echo: true
+#| eval: false
+# Importações e leitura de chaves do ambiente (.env). NUNCA escreva a chave aqui.
+import os
+from pathlib import Path
+
+import pandas as pd
+from anthropic import Anthropic
+from dotenv import load_dotenv
+from pydantic import BaseModel, Field
+
+load_dotenv(Path(__file__).resolve().parent / ".env")
+client = Anthropic()  # lê ANTHROPIC_API_KEY do ambiente
+```
+
+## Coleta e preparação dos dados
+
+O pipeline real (`src/explore.py` → `src/prepare.py`) baixa, limpa e tipa os
+284.845 registros brutos sem remover nenhuma linha. O chunk abaixo carrega o
+resultado já processado e verificado (`despesas_limpas.parquet`) para
+confirmar as contagens citadas na Metodologia:
+
+```{python}
+#| echo: true
+print(f"Linhas: {n_despesas:,} | Colunas: {n_colunas_raw}")
+print(f"Total gasto (vlrLiquido): R$ {total_gasto:,.2f}")
+print(f"Estornos (vlrLiquido < 0): {n_estornos:,}")
+print(f"Sem fornecedor identificado: {n_sem_fornecedor:,}")
+```
+
+## Modelagem estatística (baseline)
+
+Três detectores estatísticos independentes (`src/model.py`), todos baseados
+em mediana + MAD (score robusto, threshold 3,5) ou HHI (threshold 0,25).
+Servem como **baseline não-LLM** para comparação: uma rubrica determinística
+(`src/rubric_prelabel.py`) aplica os mesmos limiares sem qualquer
+subjetividade, e é usada na avaliação como ponto de referência de
+consistência para o LLM.
+
+```{python}
+#| echo: true
+def robust_z(x: pd.Series) -> pd.Series:
+    mediana = x.median()
+    mad = (x - mediana).abs().median()
+    escala = mad if mad > 0 else 1e-6 * (abs(mediana) + 1)
+    return 0.6745 * (x - mediana) / escala
+
+
+print(f"Deputados avaliados (>=1 detector): {n_deputados_total}")
+print(f"Sinalizados por 2+ métodos (alta confiança): {n_alta_confianca}")
+print(f"Sinalizados pelos 3 métodos simultaneamente: {n_tres_metodos}")
+```
+
+## Modelagem com LLM (saída estruturada)
+
+Schema Pydantic e chamada real de API usados em produção
+(`src/llm_triage.py`) --- mostrados como código de referência (`eval:
+false`, já executado anteriormente e cujos resultados reais são carregados
+no chunk seguinte, para não repetir uma chamada paga):
+
+```{python}
+#| echo: true
+#| eval: false
+from typing import Literal
+
+
+class TriageAnomalia(BaseModel):
+    severidade: Literal["baixa", "media", "alta"] = Field(
+        description="Urgência de verificação humana, dada a magnitude e convergência dos sinais"
+    )
+    categoria_anomalia: Literal[
+        "concentracao_fornecedor", "pico_temporal", "gasto_acima_pares", "combinacao"
+    ] = Field(description="Tipo dominante do padrão detectado")
+    explicacao_cidada: str = Field(max_length=280, description="Linguagem simples, SEM acusação")
+    perguntas_auditoria: list[str] = Field(min_length=2, max_length=3)
+
+
+MAX_RETRIES = 2  # 1 tentativa + 1 retry com feedback do erro de validação
+
+
+def classificar(client, caso: str) -> tuple[TriageAnomalia | None, str]:
+    """Chama a API e valida com Pydantic; retry com feedback em caso de erro."""
+    feedback = ""
+    for tentativa in range(1, MAX_RETRIES + 1):
+        resposta = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=600,
+            system=SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": USER_PROMPT_TEMPLATE.format(caso=caso) + feedback}],
+        )
+        try:
+            dados = json.loads(resposta.content[0].text)
+            return TriageAnomalia.model_validate(dados), f"ok_tentativa_{tentativa}"
+        except Exception as e:
+            feedback = f"\n\nSua resposta anterior falhou na validação: {e}. Corrija."
+    return None, "nao_classificado"  # falha final: registro marcado, não descartado
+```
+
+Resultado real já classificado (`reports/triage_llm.csv`, carregado a
+seguir --- nenhuma chamada de API é refeita neste render):
+
+```{python}
+#| echo: true
+print(triage["status_llm"].value_counts().to_string())
+print()
+print(triage["severidade"].value_counts().to_string())
+```
+
+Todos os `{python} len(triage)` casos foram classificados com sucesso na
+primeira tentativa (`ok_tentativa_1`) --- nenhum retry de validação Pydantic
+foi necessário.
+
+# Resultados
+
+## Lista priorizada
+
+```{python}
+#| echo: false
+#| output: asis
+#| label: tbl-top10
+top10 = lista.head(10)
+
+import re
+
+LATEX_SPECIAL = {
+    "\\": r"\textbackslash{}",
+    "&": r"\&",
+    "%": r"\%",
+    "$": r"\$",
+    "#": r"\#",
+    "_": r"\_",
+    "{": r"\{",
+    "}": r"\}",
+    "~": r"\textasciitilde{}",
+    "^": r"\textasciicircum{}",
+}
+
+
+def esc(s):
+    """Escapa caracteres especiais do LaTeX (motivo_resumo contém R$ e %)."""
+    return re.sub(r"[\\&%$#_{}~^]", lambda m: LATEX_SPECIAL[m.group()], str(s))
+
+
+print(r"""\begin{table}[H]
+\centering
+\begin{threeparttable}
+\caption{Top 10 casos priorizados por número de métodos convergentes.}
+\label{tbl-top10}
+\begin{tabular}{lcl}
+\toprule
+Deputado & Métodos (0--3) & Motivo dominante \\
+\midrule
+""")
+for _, row in top10.iterrows():
+    motivo = esc(str(row["motivo_resumo"])[:70] + "...")
+    print(rf"{esc(row['txNomeParlamentar'])} & {row['n_metodos_distintos']} & {motivo} \\")
+print(r"""\bottomrule
+\end{tabular}
+\begin{tablenotes}\footnotesize
+\item Fonte: reports/lista\_priorizada.csv (src/deploy.py). Lista completa com 253 casos no arquivo original.
+\end{tablenotes}
+\end{threeparttable}
+\end{table}""")
+```
+
+A Tabela @tbl-top10 mostra os casos de maior confiança: todos com os 3
+métodos estatísticos convergindo. A lista completa reduz o universo de 601
+deputados para `{python} n_alta_confianca` sinalizados por 2 ou mais
+métodos --- o "achado de negócio" central da fase de Modelagem/Avaliação.
+
+## Avaliação estatística: sensibilidade a limiares
+
+```{python}
+#| echo: false
+#| output: asis
+#| label: tbl-sensibilidade
+thresholds_score = [3.0, 3.5, 4.0]
+thresholds_hhi = [0.15, 0.25, 0.35]
+
+linhas_cat = [int((outliers_cat["score"].abs() > t).sum()) for t in thresholds_score]
+linhas_pico = [int((picos["score"].abs() > t).sum()) for t in thresholds_score]
+linhas_hhi = [int((concentracao["hhi"] > t).sum()) for t in thresholds_hhi]
+
+print(r"""\begin{table}[H]
+\centering
+\begin{threeparttable}
+\caption{Sensibilidade do número de flags a limiares alternativos (recomputado ao vivo).}
+\label{tbl-sensibilidade}
+\begin{tabular}{lccc}
+\toprule
+Detector & Limiar baixo & Padrão & Limiar alto \\
+\midrule
+""")
+print(rf"Categoria×pares (score) & {linhas_cat[0]:,} & {linhas_cat[1]:,} & {linhas_cat[2]:,} \\")
+print(rf"Pico temporal (score) & {linhas_pico[0]:,} & {linhas_pico[1]:,} & {linhas_pico[2]:,} \\")
+print(rf"Concentração fornecedor (HHI) & {linhas_hhi[0]:,} & {linhas_hhi[1]:,} & {linhas_hhi[2]:,} \\")
+print(r"""\bottomrule
+\end{tabular}
+\begin{tablenotes}\footnotesize
+\item Limiares: score 3,0/3,5/4,0; HHI 0,15/0,25/0,35. Recomputado a partir dos CSVs reais de data/processed/.
+\end{tablenotes}
+\end{threeparttable}
+\end{table}""")
+```
+
+A contagem cai de forma monotônica e gradual em todos os detectores (Tabela
+@tbl-sensibilidade) --- não há salto abrupto perto do limiar padrão,
+indicando que a escolha de 3,5/0,25 não é um ponto artificialmente sensível.
+
+## Avaliação do LLM: rubrica vs. humano
+
+```{python}
+#| echo: false
+from evaluate_llm import cohen_kappa, SEVERIDADES
+
+merged_humano = humanos.merge(triage, on="txNomeParlamentar", how="inner")
+confusao_humano = pd.crosstab(merged_humano["severidade_humana"], merged_humano["severidade"])
+confusao_humano = confusao_humano.reindex(index=SEVERIDADES, columns=SEVERIDADES, fill_value=0)
+
+accuracy_humano = (merged_humano["severidade_humana"] == merged_humano["severidade"]).mean()
+kappa_humano = cohen_kappa(confusao_humano)
+concordancia_cat_humano = (merged_humano["categoria_humana"] == merged_humano["categoria_anomalia"]).mean()
+
+merged_rubrica = rubrica.merge(triage, on="txNomeParlamentar", how="inner")
+accuracy_rubrica = (merged_rubrica["severidade_prelabel"] == merged_rubrica["severidade"]).mean()
+
+pct_media_llm = (merged_humano["severidade"] == "media").mean()
+pct_combinacao_llm = (merged_humano["categoria_anomalia"] == "combinacao").mean()
+```
+
+**Achado central desta avaliação: o LLM colapsa para respostas "seguras"
+em vez de refletir o sinal real.** Comparado contra a rotulagem humana
+genuína (n=`{python} len(merged_humano)`), o LLM atinge apenas
+`{python} f"{accuracy_humano:.0%}"` de acurácia de severidade e **Cohen's
+kappa = `{python} f"{kappa_humano:.3f}"`** (Tabela @tbl-confusao) --- na
+escala de Landis & Koch [@landis1977measurement], concordância "razoável",
+não "substancial". A concordância de categoria é ainda menor:
+`{python} f"{concordancia_cat_humano:.0%}"`.
+
+A causa não é ruído aleatório: o LLM classificou severidade **"media"** em
+`{python} f"{pct_media_llm:.0%}"` dos casos e categoria **"combinação"** em
+`{python} f"{pct_combinacao_llm:.0%}"`, quase independentemente do valor de
+referência (humano ou rubrica). Contra a rubrica determinística, a acurácia
+cai para `{python} f"{accuracy_rubrica:.0%}"` --- ainda mais baixa, porque a
+rubrica nunca "hesita": ela é 100% determinística e o LLM, sem conhecer seus
+limiares, converge para o meio-termo aparentemente seguro.
+
+```{python}
+#| echo: false
+#| output: asis
+#| label: tbl-confusao
+print(r"""\begin{table}[H]
+\centering
+\begin{threeparttable}
+\caption{Matriz de confusão: severidade (humano) vs. severidade (LLM), n=50.}
+\label{tbl-confusao}
+\begin{tabular}{lccc}
+\toprule
+Humano \textbackslash{} LLM & alta & media & baixa \\
+\midrule
+""")
+for idx, row in confusao_humano.iterrows():
+    print(rf"{idx} & {row['alta']} & {row['media']} & {row['baixa']} \\")
+print(r"""\bottomrule
+\end{tabular}
+\begin{tablenotes}\footnotesize
+\item Fonte: reports/rotulos\_humanos.csv x reports/triage\_llm.csv (src/evaluate\_llm.py), recomputado ao vivo.
+\end{tablenotes}
+\end{threeparttable}
+\end{table}""")
+```
+
+```{python}
+#| echo: false
+#| label: fig-vies
+#| fig-cap: "Distribuição de severidade: rótulo humano vs. classificação do LLM (n=50)."
+import numpy as np
+
+dist_humano = merged_humano["severidade_humana"].value_counts().reindex(SEVERIDADES, fill_value=0)
+dist_llm = merged_humano["severidade"].value_counts().reindex(SEVERIDADES, fill_value=0)
+
+x = np.arange(len(SEVERIDADES))
+largura = 0.35
+
+fig, ax = plt.subplots()
+ax.bar(x - largura / 2, dist_humano.values, largura, label="Rótulo humano", color="#1c2d4f")
+ax.bar(x + largura / 2, dist_llm.values, largura, label="Classificação do LLM", color="#18a0d7")
+ax.set_xticks(x)
+ax.set_xticklabels(["Alta", "Média", "Baixa"])
+ax.set_ylabel("Número de casos")
+ax.legend()
+plt.tight_layout()
+plt.show()
+```
+
+A Figura @fig-vies evidencia o colapso: a rotulagem humana se distribui de
+forma mais equilibrada entre as três classes, enquanto o LLM concentra a
+maioria absoluta em "média" independentemente do caso. **Melhoria proposta
+para uma próxima iteração**: injetar os limiares numéricos da rubrica
+diretamente no prompt do LLM (R\$ 50 mil / R\$ 10 mil / HHI 0,5 / 5+ flags /
+mês parcial), para que a classificação deixe de ser um julgamento
+qualitativo às cegas e passe a ancorar-se nos mesmos números que já orientam
+a rubrica determinística --- sem transferir ao LLM a decisão sobre o que é
+atípico, apenas dando-lhe o critério explícito para classificar com mais
+disciplina.
+
+## Custo por caso e plano de atualização
+
+O custo de US\$ `{python} f"{custo['custo_medio_por_caso_usd']:.5f}"` por
+caso (medido via `count_tokens`, não estimado por analogia) torna a
+extensão do pipeline financeiramente trivial. **Plano de atualização**: a
+Câmara atualiza os dados diariamente, mas não há necessidade de reprocessar
+nessa frequência --- uma cadência mensal ou trimestral é suficiente. Ao
+reprocessar, revisar se os limiares de `src/model.py`
+(`SCORE_THRESHOLD = 3.5`, `HHI_THRESHOLD = 0.25`) continuam adequados à luz
+da análise de sensibilidade (Tabela @tbl-sensibilidade), já que o volume de
+flags pode crescer conforme mais meses de 2026 chegam.
+
+# Próximos Passos
+
+- **Injetar a rubrica no prompt do LLM**: dar ao modelo os limiares
+  numéricos explícitos (R\$ 50 mil, R\$ 10 mil, HHI 0,5, 5+ flags, mês
+  parcial) para reduzir o viés de colapso identificado na avaliação, sem
+  delegar ao LLM a decisão sobre o que é atípico.
+- **Extensão a gastos em saúde (DataSUS/FNS)**: o mesmo pipeline estatístico
+  (mediana/MAD, HHI, picos temporais) se aplica diretamente a repasses do
+  Fundo Nacional de Saúde por município, outro domínio de gasto público
+  auditável e de alto volume.
+- **Automação de relatório mensal**: agendar a execução do pipeline
+  completo (`explore → prepare → model → evaluate → deploy → llm_triage`)
+  seguida da renderização deste paper, entregando uma versão atualizada sem
+  intervenção manual.
+
+# Conclusão
+
+Este trabalho entregou um pipeline CRISP-DM completo e reprodutível para
+priorizar despesas atípicas da Cota Parlamentar: três detectores estatísticos
+robustos reduzem `{python} n_deputados_total` deputados a
+`{python} n_alta_confianca` casos de atenção prioritária; um LLM com saída
+estruturada via Pydantic classifica e explica cada caso em linguagem cidadã,
+a um custo de US\$ `{python} f"{custo['custo_medio_por_caso_usd']:.5f}"` por
+caso; e uma avaliação em múltiplas camadas (sensibilidade, triangulação,
+rubrica determinística, rotulagem humana) revela honestamente a principal
+limitação do sistema --- o LLM ainda colapsa para respostas "seguras"
+(kappa = `{python} f"{kappa_humano:.3f}"`) --- em vez de escondê-la atrás de
+uma métrica única e favorável. É esse rigor na avaliação, não o resultado
+perfeito, que torna o produto confiável o suficiente para uso por
+jornalistas e auditores.
+
+# Referências
+
+::: {#refs}
+:::
