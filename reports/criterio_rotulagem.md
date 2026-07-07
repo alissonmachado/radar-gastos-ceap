@@ -46,21 +46,27 @@ Comparando "severidade com sinal = só categoria" vs. "severidade com sinal
 | Deputado | Sinal categoria (só) | Sinal max (c/ pico) | Severidade etapa 1 | Severidade final (etapa 2) |
 |---|---:|---:|---|---|
 | Aguinaldo Ribeiro | R$ 24.700,40 | R$ 69.833,94 | media | **alta** |
-| Bruno Ganem | R$ 1.350,00 | R$ 53.397,60 | baixa | **alta** |
+| Bruno Ganem | R$ 1.350,00 | R$ 53.397,60 | baixa | **media** |
 
 O autor revisou manualmente esses 2 casos à luz do sinal completo:
 
 - **Aguinaldo Ribeiro → alta**: os três detectores convergem no mesmo mês
   (06/2025) e o maior valor entre os sinais (R$ 69.833,94) ultrapassa o
   limiar de R$ 50 mil.
-- **Bruno Ganem → alta**: o sinal de pico corrigido (R$ 53.397,60) já
-  ultrapassa sozinho o limiar de R$ 50 mil, o que satisfaz a condição
-  "alta" da rubrica independentemente da concentração em fornecedor
-  (Facebook, 55% do gasto identificado). Mantivemos a precedência já
-  documentada abaixo — "alta" é verificada antes de "baixa" — para não
-  criar uma exceção ad hoc que não se aplica aos outros 48 casos: se o
-  sinal monetário já qualifica como "alta", o motivo de "baixa" ligado ao
-  fornecedor Facebook não é avaliado.
+- **Bruno Ganem → media** (decisão final do autor, após uma primeira
+  proposta de "alta"): o sinal de pico corrigido (R$ 53.397,60) ultrapassa
+  sozinho o limiar de R$ 50 mil, o que satisfaz mecanicamente a condição
+  "alta" da rubrica pela precedência já documentada abaixo (alta checada
+  antes de baixa). A primeira proposta seguiu essa precedência à risca.
+  Na revisão final, o autor optou por **não** seguir a rubrica de forma
+  puramente mecânica neste caso: o pico é real, mas a concentração em
+  Facebook para divulgação é um padrão típico de campanha parlamentar —
+  julgamento humano que a própria rubrica já reconhece como atenuante
+  (regra "fornecedor Facebook → baixa"), só que aplicado aqui como
+  atenuante parcial (para "media", não "baixa") em vez de irrelevante.
+  Este é exatamente o tipo de divergência entre regra fixa e julgamento
+  humano que a comparação "Rubrica vs. Humano" em `reports/evaluation_llm.md`
+  foi desenhada para capturar — não é um erro, é o ponto do exercício.
 
 Os outros 48 casos mantêm a classificação da etapa 1 sem alteração — nesses
 casos, o valor do pico não teria mudado a classe de severidade (seja porque

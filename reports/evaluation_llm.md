@@ -59,12 +59,12 @@ Matriz de confusão (linhas = humano, colunas = LLM):
 
 | ref \ LLM | alta | media | baixa |
 |---|---:|---:|---:|
-| **alta** | 5 | 21 | 0 |
-| **media** | 0 | 5 | 1 |
+| **alta** | 5 | 20 | 0 |
+| **media** | 0 | 6 | 1 |
 | **baixa** | 0 | 9 | 9 |
 
-- **Accuracy: 38.00%** (19/50)
-- **Cohen's kappa: 0.217**
+- **Accuracy: 40.00%** (20/50)
+- **Cohen's kappa: 0.231**
 - **Concordância de categoria: 28.00%** (14/50)
 
 **Sobre o tamanho da amostra**: n=50 é modesto para accuracy/kappa — ainda
@@ -78,7 +78,7 @@ contrário de uma amostra n<10.
 |---|---|---|---|---|---|---|
 | Aguinaldo Ribeiro | alta | media | ✗ | combinacao | combinacao | ✓ |
 | Benedita da Silva | media | media | ✓ | combinacao | combinacao | ✓ |
-| Bruno Ganem | alta | media | ✗ | gasto_acima_pares | combinacao | ✗ |
+| Bruno Ganem | media | media | ✓ | gasto_acima_pares | combinacao | ✗ |
 | Célio Silveira | alta | alta | ✓ | pico_temporal | combinacao | ✗ |
 | Elcione Barbalho | media | media | ✓ | combinacao | combinacao | ✓ |
 | Ely Santos | alta | alta | ✓ | gasto_acima_pares | combinacao | ✗ |
