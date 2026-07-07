@@ -67,6 +67,7 @@ O autor revisou manualmente esses 2 casos à luz do sinal completo:
   Este é exatamente o tipo de divergência entre regra fixa e julgamento
   humano que a comparação "Rubrica vs. Humano" em `reports/evaluation_llm.md`
   foi desenhada para capturar — não é um erro, é o ponto do exercício.
+  Decisão final do caso (media) revisada e endossada pelo autor.
 
 Os outros 48 casos mantêm a classificação da etapa 1 sem alteração — nesses
 casos, o valor do pico não teria mudado a classe de severidade (seja porque
