@@ -1,0 +1,13 @@
+{
+  "modelo": "claude-sonnet-4-6",
+  "n_casos": 50,
+  "total_input_tokens": 31955,
+  "total_output_tokens": 11096,
+  "preco_input_por_milhao_usd": 3.0,
+  "preco_output_por_milhao_usd": 15.0,
+  "custo_input_usd": 0.0959,
+  "custo_output_usd": 0.1664,
+  "custo_total_usd": 0.2623,
+  "custo_medio_por_caso_usd": 0.00525,
+  "projecao_253_casos_usd": 1.33
+}
