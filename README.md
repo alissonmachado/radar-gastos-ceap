@@ -35,10 +35,10 @@ Antes de rodar, baixe e descompacte os arquivos de origem em `data/raw/`:
 
 ## Relatórios
 
-- `reports/data_understanding.md` — perfil inicial dos dados brutos.
-- `reports/relatorio_final.md` — relatório final em linguagem cidadã, com a
+- `reports/data_understanding.md` perfil inicial dos dados brutos.
+- `reports/relatorio_final.md` relatório final em linguagem cidadã, com a
   lista priorizada e as limitações do método.
-- `reports/lista_priorizada.csv` — saída de `src/deploy.py`: deputados
+- `reports/lista_priorizada.csv` saída de `src/deploy.py`: deputados
   sinalizados por 2 ou mais dos 3 detectores, com o motivo resumido.
 
 ## Metodologia (resumo)
