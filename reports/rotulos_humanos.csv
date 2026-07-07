@@ -1,5 +1,51 @@
-txNomeParlamentar,severidade_humana,categoria_humana
-Aguinaldo Ribeiro,media,combinacao
-Bruno Ganem,baixa,concentracao_fornecedor
-Célio Silveira,alta,combinacao
+﻿txNomeParlamentar,severidade_humana,categoria_humana
+Aguinaldo Ribeiro,alta,combinacao
+Benedita da Silva,media,combinacao
+Bruno Ganem,alta,gasto_acima_pares
+Célio Silveira,alta,pico_temporal
+Elcione Barbalho,media,combinacao
+Ely Santos,alta,gasto_acima_pares
+Erika Kokay,baixa,gasto_acima_pares
+Fabio Schiochet,baixa,gasto_acima_pares
+Gabriel Mota,alta,concentracao_fornecedor
+Gilson Marques,baixa,gasto_acima_pares
+Henderson Pinto,media,concentracao_fornecedor
+Jeferson Rodrigues,alta,gasto_acima_pares
+Josenildo,baixa,combinacao
+LIDERANÇA DO UNIÃO BRASIL,alta,gasto_acima_pares
+Magda Mofatto,alta,concentracao_fornecedor
+Marcos Tavares,alta,concentracao_fornecedor
+Marx Beltrão,media,concentracao_fornecedor
+Mauricio do Vôlei,alta,gasto_acima_pares
+Maurício Carvalho,baixa,combinacao
+Olival Marques,alta,combinacao
+Otoni de Paula,baixa,combinacao
+Pastor Gil,alta,pico_temporal
+Professor Alcides,alta,concentracao_fornecedor
 Sargento Gonçalves,alta,gasto_acima_pares
+Soraya Santos,alta,combinacao
+Sâmia Bomfim,baixa,combinacao
+Adilson Barroso,baixa,combinacao
+Afonso Hamm,baixa,combinacao
+Afonso Motta,baixa,combinacao
+Albuquerque,alta,pico_temporal
+Alceu Moreira,baixa,combinacao
+Alex Manente,alta,gasto_acima_pares
+Alexandre Lindenmeyer,baixa,combinacao
+Alfredo Gaspar,baixa,combinacao
+Aluisio Mendes,alta,gasto_acima_pares
+Amanda Gentil,alta,gasto_acima_pares
+Ana Paula Lima,baixa,combinacao
+Andreia Siqueira,alta,pico_temporal
+André Fernandes,baixa,combinacao
+André Janones,alta,pico_temporal
+Antonio Carlos Rodrigues,baixa,combinacao
+Antônio Doido,alta,gasto_acima_pares
+Arlindo Chinaglia,alta,pico_temporal
+Arnaldo Jardim,alta,concentracao_fornecedor
+Arthur Lira,alta,pico_temporal
+Aureo Ribeiro,alta,gasto_acima_pares
+Bandeira de Mello,media,combinacao
+Bibo Nunes,baixa,combinacao
+Bohn Gass,baixa,combinacao
+Bruno Farias,media,combinacao

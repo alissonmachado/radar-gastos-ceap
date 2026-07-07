@@ -5,7 +5,7 @@ classificar severidade, tipificar o padrão e explicar em linguagem cidadã.
 O LLM nunca decide o que é anômalo nem afirma irregularidade (regras 3 e 4 do CLAUDE.md).
 
 Uso:
-    python src/llm_triage.py            # top 30 casos (default)
+    python src/llm_triage.py            # top 50 casos (default)
     python src/llm_triage.py --top 15   # controla custo
 """
 
@@ -118,7 +118,7 @@ def classificar(client: Anthropic, caso: str) -> tuple[TriageAnomalia | None, st
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--top", type=int, default=30, help="quantos casos enviar ao LLM (controle de custo)")
+    parser.add_argument("--top", type=int, default=50, help="quantos casos enviar ao LLM (controle de custo)")
     args = parser.parse_args()
 
     client = Anthropic()  # lê ANTHROPIC_API_KEY do ambiente (.env)

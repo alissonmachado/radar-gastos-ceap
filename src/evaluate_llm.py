@@ -1,4 +1,11 @@
-"""Evaluation: concordância entre triagem por LLM e rotulagem humana (CEAP)."""
+"""Evaluation: concordância entre triagem por LLM e duas referências (CEAP).
+
+Duas comparações distintas e não-intercambiáveis:
+  A) LLM vs. rubrica determinística (n=50, reports/rotulos_prelabel.csv) —
+     mede se o LLM reproduz uma regra fixa e conhecida. NÃO é validação humana.
+  B) LLM vs. rotulagem humana genuína (n atual, reports/rotulos_humanos.csv) —
+     rótulos digitados por quem revisou os casos, sem seguir uma rubrica escrita.
+"""
 
 import sys
 from pathlib import Path
@@ -21,186 +28,222 @@ def section(title: str) -> None:
 
 
 def cohen_kappa(confusao: pd.DataFrame) -> float:
-    """Cohen's kappa a partir de uma matriz de confusão (linhas=humano, colunas=LLM)."""
+    """Cohen's kappa a partir de uma matriz de confusão (linhas=referência, colunas=LLM)."""
     n = confusao.values.sum()
     po = confusao.values.trace() / n
-    marg_humano = confusao.sum(axis=1) / n
+    marg_ref = confusao.sum(axis=1) / n
     marg_llm = confusao.sum(axis=0) / n
-    pe = sum(marg_humano[c] * marg_llm[c] for c in confusao.index)
+    pe = sum(marg_ref[c] * marg_llm[c] for c in confusao.index)
     if pe == 1:
         return float("nan")
     return (po - pe) / (1 - pe)
 
 
-def carregar_merge() -> pd.DataFrame:
-    llm = pd.read_csv(REPORTS_DIR / "triage_llm.csv", encoding="utf-8")
-    humano = pd.read_csv(REPORTS_DIR / "rotulos_humanos.csv", encoding="utf-8-sig")
+def avaliar(merged: pd.DataFrame, sev_ref_col: str, cat_ref_col: str, label: str) -> dict:
+    section(f"{label}: LLM vs. {sev_ref_col}/{cat_ref_col} (n={len(merged)})")
 
-    merged = humano.merge(llm, on="txNomeParlamentar", how="inner")
+    confusao = pd.crosstab(merged[sev_ref_col], merged["severidade"])
+    confusao = confusao.reindex(index=SEVERIDADES, columns=SEVERIDADES, fill_value=0)
 
-    nao_encontrados_no_llm = set(humano["txNomeParlamentar"]) - set(llm["txNomeParlamentar"])
-    nao_rotulados = set(llm["txNomeParlamentar"]) - set(humano["txNomeParlamentar"])
+    accuracy = (merged[sev_ref_col] == merged["severidade"]).mean()
+    kappa = cohen_kappa(confusao)
+    concordancia_categoria = (merged[cat_ref_col] == merged["categoria_anomalia"]).mean()
 
-    print(f"Rótulos humanos: {len(humano)} | Casos no triage LLM: {len(llm)} | Correspondências: {len(merged)}")
-    if nao_encontrados_no_llm:
-        print(f"AVISO: {len(nao_encontrados_no_llm)} rótulo(s) humano(s) sem correspondência no triage LLM: {sorted(nao_encontrados_no_llm)}")
-    if nao_rotulados:
-        print(f"Casos do triage LLM ainda sem rótulo humano: {len(nao_rotulados)}")
+    print("Matriz de confusão (linhas=referência, colunas=LLM):")
+    print(confusao.to_string())
+    print(f"Accuracy: {accuracy:.2%} | Cohen's kappa: {kappa:.3f} | Concordância categoria: {concordancia_categoria:.2%}")
 
+    disagreements = merged[(merged[sev_ref_col] != merged["severidade"]) | (merged[cat_ref_col] != merged["categoria_anomalia"])]
+
+    moda_severidade_llm = merged["severidade"].value_counts()
+    moda_categoria_llm = merged["categoria_anomalia"].value_counts()
+
+    return {
+        "n": len(merged),
+        "confusao": confusao,
+        "accuracy": accuracy,
+        "kappa": kappa,
+        "concordancia_categoria": concordancia_categoria,
+        "merged": merged,
+        "sev_ref_col": sev_ref_col,
+        "cat_ref_col": cat_ref_col,
+        "disagreements": disagreements,
+        "moda_severidade_llm": moda_severidade_llm,
+        "moda_categoria_llm": moda_categoria_llm,
+    }
+
+
+def carregar_merge(llm: pd.DataFrame, referencia: pd.DataFrame) -> pd.DataFrame:
+    merged = referencia.merge(llm, on="txNomeParlamentar", how="inner")
+    faltantes = set(referencia["txNomeParlamentar"]) - set(llm["txNomeParlamentar"])
+    if faltantes:
+        print(f"AVISO: {len(faltantes)} nome(s) na referência sem correspondência no triage LLM: {sorted(faltantes)}")
     return merged
 
 
-def avaliar_severidade(merged: pd.DataFrame) -> tuple[pd.DataFrame, float, float]:
-    section("Severidade: LLM vs. humano")
-
-    confusao = pd.crosstab(merged["severidade_humana"], merged["severidade"])
-    confusao = confusao.reindex(index=SEVERIDADES, columns=SEVERIDADES, fill_value=0)
-
-    accuracy = (merged["severidade_humana"] == merged["severidade"]).mean()
-    kappa = cohen_kappa(confusao)
-
-    print("Matriz de confusão (linhas=humano, colunas=LLM):")
-    print(confusao.to_string())
-    print(f"\nAccuracy: {accuracy:.2%}")
-    print(f"Cohen's kappa: {kappa:.3f}")
-
-    return confusao, accuracy, kappa
-
-
-def avaliar_categoria(merged: pd.DataFrame) -> float:
-    section("Categoria: LLM vs. humano")
-
-    concordancia = (merged["categoria_humana"] == merged["categoria_anomalia"]).mean()
-    print(f"% de concordância na categoria: {concordancia:.2%}")
-
-    print("\nDetalhe:")
-    print(
-        merged[["txNomeParlamentar", "categoria_humana", "categoria_anomalia"]]
-        .assign(concorda=lambda d: d["categoria_humana"] == d["categoria_anomalia"])
-        .to_string(index=False)
+def tabela_confusao_md(confusao: pd.DataFrame) -> str:
+    linhas = "\n".join(
+        f"| **{idx}** | {row['alta']} | {row['media']} | {row['baixa']} |" for idx, row in confusao.iterrows()
     )
+    return f"| ref \\ LLM | alta | media | baixa |\n|---|---:|---:|---:|\n{linhas}"
 
-    return concordancia
+
+def tabela_detalhe_md(merged: pd.DataFrame, sev_ref_col: str, cat_ref_col: str) -> str:
+    linhas = []
+    for _, r in merged.iterrows():
+        sev_ok = "✓" if r[sev_ref_col] == r["severidade"] else "✗"
+        cat_ok = "✓" if r[cat_ref_col] == r["categoria_anomalia"] else "✗"
+        linhas.append(
+            f"| {r['txNomeParlamentar']} | {r[sev_ref_col]} | {r['severidade']} | {sev_ok} | "
+            f"{r[cat_ref_col]} | {r['categoria_anomalia']} | {cat_ok} |"
+        )
+    return "| Deputado | Severidade (ref.) | Severidade (LLM) | Concorda? | Categoria (ref.) | Categoria (LLM) | Concorda? |\n|---|---|---|---|---|---|---|\n" + "\n".join(linhas)
 
 
-def gerar_relatorio(merged: pd.DataFrame, confusao: pd.DataFrame, accuracy: float, kappa: float, concordancia_categoria: float) -> None:
-    n = len(merged)
+def analisar_vies_llm(resultado: dict) -> str:
+    n = resultado["n"]
+    moda_sev = resultado["moda_severidade_llm"]
+    moda_cat = resultado["moda_categoria_llm"]
+    sev_dominante = moda_sev.idxmax()
+    cat_dominante = moda_cat.idxmax()
+    pct_sev = moda_sev.max() / n
+    pct_cat = moda_cat.max() / n
 
-    disagreements_sev = merged[merged["severidade_humana"] != merged["severidade"]]
-    disagreements_cat = merged[merged["categoria_humana"] != merged["categoria_anomalia"]]
+    texto = ""
+    if pct_sev >= 0.5:
+        texto += (
+            f"- **Viés de severidade**: o LLM classificou `{sev_dominante}` em "
+            f"{moda_sev.max()}/{n} casos ({pct_sev:.0%}), independentemente do "
+            f"valor de referência. Isso sugere que boa parte do desacordo não é "
+            f"ruído aleatório, e sim uma tendência sistemática do LLM em "
+            f"convergir para uma única classe de severidade.\n"
+        )
+    if pct_cat >= 0.5:
+        texto += (
+            f"- **Viés de categoria**: o LLM classificou `{cat_dominante}` em "
+            f"{moda_cat.max()}/{n} casos ({pct_cat:.0%}). Como `combinacao` é a "
+            f"categoria natural quando os 3 detectores convergem, isso pode "
+            f"refletir o prompt levando o LLM a privilegiar essa opção sempre que "
+            f"o texto do caso menciona mais de um sinal, mesmo quando um dos "
+            f"sinais é claramente secundário.\n"
+        )
+    return texto
 
-    linhas_confusao = "\n".join(
-        f"| **{idx}** | {row['alta']} | {row['media']} | {row['baixa']} |"
-        for idx, row in confusao.iterrows()
-    )
 
-    linhas_detalhe = "\n".join(
-        f"| {r['txNomeParlamentar']} | {r['severidade_humana']} | {r['severidade']} | "
-        f"{'✓' if r['severidade_humana'] == r['severidade'] else '✗'} | "
-        f"{r['categoria_humana']} | {r['categoria_anomalia']} | "
-        f"{'✓' if r['categoria_humana'] == r['categoria_anomalia'] else '✗'} |"
-        for _, r in merged.iterrows()
-    )
+def gerar_secao_rubrica(resultado: dict) -> str:
+    n = resultado["n"]
+    return f"""## A) LLM vs. rubrica determinística (n={n})
 
-    conteudo = f"""# Evaluation — Concordância LLM vs. Rotulagem Humana (CEAP)
+**Isto NÃO é validação humana.** `reports/rotulos_prelabel.csv` é gerado por
+`src/rubric_prelabel.py`, uma regra fixa (ver `reports/criterio_rotulagem.md`)
+aplicada sobre os mesmos sinais estatísticos que alimentam o LLM. Esta
+comparação mede o quanto o LLM, com um prompt genérico e sem conhecer os
+limiares da rubrica, converge para a mesma classificação que uma fórmula
+fixa produziria — é um teste de consistência, não de acerto.
 
-**Script:** `src/evaluate_llm.py`
-**Insumos:** `reports/triage_llm.csv` (30 casos classificados pelo LLM),
-`reports/rotulos_humanos.csv` (rotulagem manual independente)
+Matriz de confusão (linhas = rubrica, colunas = LLM):
 
-## Aviso sobre o tamanho da amostra
+{tabela_confusao_md(resultado["confusao"])}
 
-**N = {n} casos com rótulo humano até o momento**, de um total de 30
-classificados pelo LLM. Com uma amostra dessa dimensão, accuracy e Cohen's
-kappa têm intervalo de confiança enorme — um único caso a mais ou a menos
-muda o resultado de forma substancial. Os números abaixo são um retrato
-preliminar, não uma validação estatística robusta do LLM. A rotulagem
-humana das demais linhas de `reports/triage_llm.csv` deve continuar para
-que essa avaliação ganhe poder estatístico.
+- **Accuracy: {resultado["accuracy"]:.2%}** ({int(resultado["accuracy"] * n)}/{n})
+- **Cohen's kappa: {resultado["kappa"]:.3f}**
+- **Concordância de categoria: {resultado["concordancia_categoria"]:.2%}** ({int(resultado["concordancia_categoria"] * n)}/{n})
 
-## Severidade: LLM vs. humano
+### Hipóteses para as divergências (rubrica)
 
-Matriz de confusão (linhas = rótulo humano, colunas = rótulo do LLM):
+O LLM nunca recebeu os limiares da rubrica (R$ 50 mil / R$ 10 mil / HHI 0,5
+/ 5+ flags / mês parcial 06-07/2026) — ele foi instruído apenas a classificar
+severidade e categoria a partir do texto factual do caso (`motivo_resumo`),
+com critério próprio. Por isso, divergências aqui **não são erro do LLM**:
+elas mostram que o LLM pondera os sinais de forma diferente de uma fórmula
+que ele nunca viu. Padrões observados nos casos divergentes:
 
-| humano \\ LLM | alta | media | baixa |
-|---|---:|---:|---:|
-{linhas_confusao}
-
-- **Accuracy: {accuracy:.2%}** ({int(accuracy * n)}/{n} casos com severidade idêntica)
-- **Cohen's kappa: {kappa:.3f}**
-
-Cohen's kappa corrige a concordância bruta pelo acordo esperado ao acaso
-dado o desbalanceamento das classes. Com N={n}, mesmo um kappa
-"substancial" (na escala usual de Landis & Koch, > 0,6) não deve ser lido
-como "o LLM está calibrado" — é consistente tanto com um classificador bom
-quanto com sorte em uma amostra pequena.
-
-## Categoria: % de concordância
-
-**{concordancia_categoria:.0%} de concordância** ({int(concordancia_categoria * n)}/{n} casos com
-`categoria_anomalia` idêntica a `categoria_humana`).
-
-## Detalhe caso a caso
-
-| Deputado | Severidade (humano) | Severidade (LLM) | Concorda? | Categoria (humano) | Categoria (LLM) | Concorda? |
-|---|---|---|---|---|---|---|
-{linhas_detalhe}
-
-## Análise honesta das divergências
-
+- Quando os 3 detectores sinalizam (`n_metodos_distintos == 3`), a rubrica
+  quase sempre classifica `categoria = combinacao` por definição; o LLM às
+  vezes prefere nomear o sinal que parece dominante no texto, mesmo com os
+  3 presentes.
+- A regra de severidade "baixa" da rubrica para fornecedor Facebook ou queda
+  em mês parcial é uma heurística de negócio específica (anúncio
+  patrocinado é gasto comum; jul/2026 está incompleto) que o LLM não tem
+  como inferir de um prompt genérico — ele não sabe que jul/2026 é parcial
+  nem que "Facebook" deveria reduzir a severidade.
+{analisar_vies_llm(resultado)}
+## B) LLM vs. rotulagem humana genuína (n={resultado["n"]})
 """
 
-    if disagreements_sev.empty and disagreements_cat.empty:
-        conteudo += "Nenhuma divergência nos casos rotulados até agora — mas com N tão pequeno, isso é fraca evidência de que o LLM está bem calibrado; é preciso rotular mais casos antes de tirar conclusões.\n"
+
+def gerar_secao_humano(resultado: dict) -> str:
+    n = resultado["n"]
+    texto = f"""**{n} caso(s) revisado(s) e rotulado(s) manualmente**, sem seguir a rubrica
+escrita — critério do próprio revisor.
+
+Matriz de confusão (linhas = humano, colunas = LLM):
+
+{tabela_confusao_md(resultado["confusao"])}
+
+- **Accuracy: {resultado["accuracy"]:.2%}** ({int(resultado["accuracy"] * n)}/{n})
+- **Cohen's kappa: {resultado["kappa"]:.3f}**
+- **Concordância de categoria: {resultado["concordancia_categoria"]:.2%}** ({int(resultado["concordancia_categoria"] * n)}/{n})
+
+**Sobre o tamanho da amostra**: n={n} é modesto para accuracy/kappa — ainda
+suscetível a mudar de forma notável com mais alguns casos rotulados — mas já
+permite ver padrões sistemáticos (não apenas ruído de poucos pontos), ao
+contrário de uma amostra n<10.
+
+### Detalhe caso a caso
+
+{tabela_detalhe_md(resultado["merged"], resultado["sev_ref_col"], resultado["cat_ref_col"])}
+
+### Hipóteses para as divergências (humano)
+
+"""
+    if resultado["disagreements"].empty:
+        texto += f"Nenhuma divergência nos {n} casos rotulados — com essa contagem, isso já é um sinal razoavelmente positivo, mas mais rótulos continuam sendo úteis para confirmar.\n"
     else:
-        conteudo += (
-            "Casos com divergência (ver também `reports/lista_priorizada.csv` para o "
-            "`motivo_resumo` completo de cada um):\n\n"
-        )
-        for _, r in pd.concat([disagreements_sev, disagreements_cat]).drop_duplicates(subset="txNomeParlamentar").iterrows():
-            conteudo += f"- **{r['txNomeParlamentar']}**: humano = `{r['severidade_humana']}`/`{r['categoria_humana']}`, LLM = `{r['severidade']}`/`{r['categoria_anomalia']}`.\n"
-
-        conteudo += """
-Hipóteses para as divergências observadas (não são certezas — são leituras
-qualitativas dos casos, a confirmar com mais rótulos):
-
-- Quando os 3 detectores estatísticos sinalizam o mesmo deputado
-  (`n_metodos_distintos == 3`), o LLM tende a rotular `categoria_anomalia`
-  como `combinacao` quase mecanicamente. Um revisor humano, ao olhar o
-  `motivo_resumo` completo, pode julgar que um dos três sinais é
-  claramente mais relevante que os outros dois (ex.: um valor monetário
-  muito pequeno numa categoria, ou um fornecedor concentrado que é uma
-  plataforma de publicidade comum como Facebook) e preferir rotular pelo
-  sinal dominante em vez de "combinação". Isso é consistente com a
-  limitação já registrada em `reports/evaluation.md`: os 3 métodos não são
-  totalmente independentes — picos temporais e outliers de categoria
-  frequentemente capturam o mesmo evento de gasto (ex.: um mês pesado em
-  "Divulgação da Atividade Parlamentar" aciona os dois detectores ao mesmo
-  tempo), então "3 métodos concordam" nem sempre significa 3 evidências
-  independentes.
+        texto += f"""- Quando os 3 detectores estatísticos sinalizam o mesmo deputado, o LLM
+  tende a rotular `categoria_anomalia` como `combinacao` quase
+  mecanicamente. Um revisor humano, ao olhar o `motivo_resumo` completo,
+  pode julgar que um dos três sinais é claramente mais relevante (ex.: um
+  valor pequeno numa categoria, ou um fornecedor concentrado que é uma
+  plataforma de publicidade comum) e preferir rotular pelo sinal dominante
+  em vez de "combinação". Consistente com a limitação já registrada em
+  `reports/evaluation.md`: os 3 métodos não são totalmente independentes.
 - Divergências de severidade podem surgir quando o LLM pondera a
   convergência dos métodos (`combinacao` → severidade mais alta por
   default) enquanto o humano pondera mais a plausibilidade do fornecedor
-  concentrado ou o tamanho absoluto do valor. Isso é o mesmo padrão que a
-  rubrica determinística de `src/rubric_prelabel.py` tenta capturar
-  explicitamente com a regra "fornecedor Facebook → severidade baixa" — se
-  o humano aplicou raciocínio parecido, a divergência é esperada e não
-  indica erro do LLM, só um critério diferente de peso entre sinais.
+  concentrado ou o tamanho absoluto do valor.
+{analisar_vies_llm(resultado)}"""
+    return texto
+
+
+def gerar_relatorio(resultado_rubrica: dict, resultado_humano: dict, n_llm: int) -> None:
+    conteudo = f"""# Evaluation — Concordância LLM vs. Referências (CEAP)
+
+**Script:** `src/evaluate_llm.py`
+**Insumos:** `reports/triage_llm.csv` ({n_llm} casos classificados pelo LLM),
+`reports/rotulos_prelabel.csv` (rubrica determinística, n={resultado_rubrica["n"]}),
+`reports/rotulos_humanos.csv` (rotulagem humana genuína, n={resultado_humano["n"]})
+
+Este relatório faz **duas comparações distintas e não-intercambiáveis** —
+ver `reports/criterio_rotulagem.md` para por que elas não devem ser
+confundidas.
+
 """
-
+    conteudo += gerar_secao_rubrica(resultado_rubrica)
+    conteudo += gerar_secao_humano(resultado_humano)
     conteudo += """
-## Limitações desta avaliação
+## Limitações gerais desta avaliação
 
-- Amostra pequena (ver aviso acima) — não há poder estatístico para
-  afirmar que o LLM concorda ou diverge do humano de forma geral.
-- A rotulagem humana usada aqui não seguiu uma rubrica escrita (diferente
-  de `src/rubric_prelabel.py`), então parte da divergência entre humano e
-  LLM pode refletir apenas critérios implícitos e não documentados do
-  revisor, não necessariamente um erro do LLM.
-- Esta avaliação não substitui a comparação com a pré-rotulagem por
-  rubrica (`reports/rotulos_prelabel.csv`) nem a análise de sensibilidade
-  já feita em `reports/evaluation.md` — são três ângulos complementares,
-  nenhum suficiente sozinho.
+- A comparação com a rubrica (A) mede consistência com uma regra fixa, não
+  qualidade de julgamento — um kappa alto ali não implica que o LLM "acerta
+  mais", só que converge com uma fórmula específica.
+- A comparação com humano (B) já tem n suficiente para ver padrões
+  sistemáticos, mas ainda é uma amostra única (um só revisor, sem segundo
+  avaliador para medir concordância entre humanos) — não deve ser tratada
+  como validação definitiva da qualidade do LLM.
+- Nenhuma das duas comparações substitui a outra. Tratar (A) como se fosse
+  "validação humana" seria uma caracterização falsa da metodologia — a
+  distinção é mantida deliberadamente neste relatório.
 """
 
     destino = REPORTS_DIR / "evaluation_llm.md"
@@ -209,10 +252,19 @@ qualitativas dos casos, a confirmar com mais rótulos):
 
 
 def main() -> None:
-    merged = carregar_merge()
-    confusao, accuracy, kappa = avaliar_severidade(merged)
-    concordancia_categoria = avaliar_categoria(merged)
-    gerar_relatorio(merged, confusao, accuracy, kappa, concordancia_categoria)
+    llm = pd.read_csv(REPORTS_DIR / "triage_llm.csv", encoding="utf-8")
+    rubrica = pd.read_csv(REPORTS_DIR / "rotulos_prelabel.csv", encoding="utf-8-sig")[
+        ["txNomeParlamentar", "severidade_prelabel", "categoria_prelabel"]
+    ]
+    humano = pd.read_csv(REPORTS_DIR / "rotulos_humanos.csv", encoding="utf-8-sig")
+
+    merged_rubrica = carregar_merge(llm, rubrica)
+    merged_humano = carregar_merge(llm, humano)
+
+    resultado_rubrica = avaliar(merged_rubrica, "severidade_prelabel", "categoria_prelabel", "Rubrica")
+    resultado_humano = avaliar(merged_humano, "severidade_humana", "categoria_humana", "Humano")
+
+    gerar_relatorio(resultado_rubrica, resultado_humano, len(llm))
 
 
 if __name__ == "__main__":
