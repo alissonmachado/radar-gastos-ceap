@@ -1,6 +1,6 @@
 # Radar de Gastos da Cota Parlamentar (CEAP)
 
-Pipeline CRISP-DM que prioriza — nunca acusa — despesas atípicas da Cota
+Pipeline CRISP-DM que prioriza nunca acusa despesas atípicas da Cota
 Parlamentar (CEAP) usando detecção estatística robusta e triagem por LLM
 com saída estruturada e validação humana.
 
