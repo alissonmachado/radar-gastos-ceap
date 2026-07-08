@@ -249,6 +249,50 @@ força os campos `severidade` (baixa/média/alta), `categoria_anomalia`,
 na seção Implementação. O LLM recebe apenas os casos **já** sinalizados
 estatisticamente; ele nunca decide sozinho o que é atípico.
 
+## Escolhas metodológicas e trade-offs
+
+As decisões abaixo não são neutras nem inevitáveis --- valem ser
+explicitadas, porque moldam o que o pipeline prioriza e o que deixa de fora.
+
+**Domínio**: optei por CEAP em vez de gastos de saúde (DataSUS/FNS) ---
+outro domínio de gasto público de volume comparável, citado em Próximos
+Passos como extensão --- porque os arquivos anuais da Câmara já vêm num
+formato único e estável, enquanto dados de saúde exigiriam integrar
+múltiplas fontes antes de qualquer análise. Dado o prazo do trabalho final,
+priorizei entregar um pipeline completo (dado bruto → paper) a aprofundar a
+exploração de um domínio mais complexo de integrar.
+
+**Método de detecção**: escolhi mediana + MAD [@iglewicz1993outliers] em vez
+de um modelo de machine learning (ex.: isolation forest) para os três
+detectores de `src/model.py`. Num domínio em que o resultado associa nomes
+de pessoas públicas a um ranking de atenção, um método cuja decisão não é
+explicável em uma frase não é aceitável, mesmo que tivesse desempenho
+melhor em alguma métrica de detecção de anomalias. Mediana e MAD são
+conferíveis à mão por qualquer pessoa com uma calculadora.
+
+**Divisão de trabalho entre estatística e LLM**: "o LLM nunca acusa" é uma
+decisão de design, não uma limitação técnica contornável. O LLM não decide
+o que é atípico --- isso já foi decidido estatisticamente antes de qualquer
+prompt --- e o *system prompt* de `src/llm_triage.py` proíbe explicitamente
+qualquer insinuação de irregularidade. O custo de um falso positivo aqui não
+é um erro de classificação qualquer: é o nome de uma pessoa associado a uma
+acusação que ela nunca cometeu.
+
+**Erro encontrado durante a exploração**: a primeira implementação do filtro
+de CNPJ genérico comparava contra códigos de 12 dígitos em vez de 14,
+retornando zero registros onde na verdade existem 8.527 (ver
+`reports/data_understanding.md`). A correção só aconteceu porque o
+resultado zero era suspeito demais para aceitar sem conferir.
+
+**Rotulagem humana em duas passadas**: a primeira rotulagem dos 50 casos de
+avaliação usou apenas o sinal de categoria×pares, um critério mais restrito
+do que a definição da rubrica (`reports/criterio_rotulagem.md`). A segunda
+passada revisou os 2 casos em que isso mudava o resultado; um deles, Bruno
+Ganem, permanece um caso de fronteira decidido manualmente (severidade
+"média", não "alta"), porque a concentração em fornecedor de anúncios no
+Facebook é um padrão comum de campanha de divulgação parlamentar --- um
+julgamento que a rubrica sozinha não captura.
+
 # Implementação
 
 ## Configuração do ambiente
@@ -596,12 +640,22 @@ robustos reduzem `{python} n_deputados_total` deputados a
 estruturada via Pydantic classifica e explica cada caso em linguagem cidadã,
 a um custo de US\$ `{python} f"{custo['custo_medio_por_caso_usd']:.5f}"` por
 caso; e uma avaliação em múltiplas camadas (sensibilidade, triangulação,
-rubrica determinística, rotulagem humana) revela honestamente a principal
-limitação do sistema --- o LLM ainda colapsa para respostas "seguras"
-(kappa = `{python} f"{kappa_humano:.3f}"`) --- em vez de escondê-la atrás de
-uma métrica única e favorável. É esse rigor na avaliação, não o resultado
-perfeito, que torna o produto confiável o suficiente para uso por
-jornalistas e auditores.
+rubrica determinística, rotulagem humana) mostra que o LLM ainda colapsa
+para respostas "seguras" (kappa = `{python} f"{kappa_humano:.3f}"`, escala
+"razoável" e não "substancial" segundo Landis & Koch [@landis1977measurement])
+em vez de refletir o sinal real de cada caso.
+
+A parte estatística do pipeline (três detectores + triangulação) é
+reprodutível e reduz `{python} n_deputados_total` deputados a
+`{python} n_alta_confianca` casos de forma auditável --- isso já elimina a
+necessidade de revisar manualmente centenas de milhares de linhas. A
+classificação por LLM, por outro lado, não deveria ser usada hoje sem
+revisão humana da `explicacao_cidada` gerada para cada caso: um kappa de
+`{python} f"{kappa_humano:.3f}"` é baixo demais para tratar a saída do LLM
+como veredito. A próxima iteração descrita em Próximos Passos --- injetar
+os limiares da rubrica no prompt --- ataca essa causa específica; até ela
+ser testada, o valor deste trabalho está na camada estatística, não na
+camada de linguagem.
 
 # Referências
 

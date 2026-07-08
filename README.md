@@ -106,6 +106,63 @@ priorizada. Os casos priorizados são então classificados por um LLM (Claude,
 saída estruturada via Pydantic) para severidade e explicação em linguagem
 cidadã — nunca para decidir sozinho o que é atípico.
 
+## Decisões de projeto e aprendizados
+
+Registro aqui, em primeira pessoa, algumas decisões que moldaram o que este
+pipeline faz e não faz — e um erro que encontrei no caminho.
+
+**Por que CEAP e não DataSUS/FNS.** Cheguei a considerar repasses de saúde
+(DataSUS/FNS) como domínio do trabalho — volume comparável, mesmo tipo de
+problema. Escolhi CEAP porque os arquivos anuais da Câmara já vêm num
+formato único e estável (`Ano-{ano}.csv.zip`), enquanto dados de saúde
+exigiriam integrar múltiplas fontes antes de qualquer análise. Com o prazo
+do trabalho final, troquei profundidade de exploração por entregar um
+pipeline completo, do dado bruto ao paper.
+
+**Por que mediana + MAD e não um modelo de machine learning.** Descartei
+deliberadamente abordagens de ML (ex.: isolation forest, clustering) para
+detectar outliers. Num domínio em que o resultado associa nomes de pessoas
+públicas a um ranking de atenção, um método que eu não consigo explicar em
+uma frase para um jornalista ou auditor não serve — mesmo que tivesse
+desempenho melhor em alguma métrica. Mediana e MAD são conferíveis à mão.
+
+**"O LLM nunca acusa" é uma decisão de design, não uma limitação técnica.**
+O LLM não decide o que é atípico — isso já foi decidido estatisticamente
+antes de qualquer prompt. Ele só classifica severidade e explica em
+linguagem simples, com uma regra absoluta no *system prompt*
+(`src/llm_triage.py`) proibindo qualquer insinuação de irregularidade. O
+custo de um falso positivo aqui não é um erro de classificação qualquer —
+é o nome de uma pessoa associado a uma acusação que ela nunca cometeu.
+
+**O bug dos 14 dígitos do CNPJ.** Na fase de exploração, minha primeira
+implementação do filtro de "CNPJ genérico" comparava contra códigos de 12
+dígitos, não 14 — resultado: zero registros encontrados, quando na verdade
+existem 8.527. Só percebi o erro porque um resultado zero era suspeito
+demais para aceitar sem checar. A correção está registrada em
+`reports/data_understanding.md`.
+
+**A rotulagem em duas passadas e o caso Bruno Ganem.** Rotulei os 50 casos
+de avaliação olhando só o sinal de categoria×pares, sem o valor de pico —
+um critério mais restrito do que a rubrica pedia. Ao perceber a diferença,
+revisei os 2 casos em que isso mudava o resultado (ver
+`reports/criterio_rotulagem.md`). Um deles, Bruno Ganem, é um caso de
+fronteira real: o valor do pico justificaria "alta" pela regra mecânica,
+mas a concentração em fornecedor de anúncios no Facebook é um padrão comum
+de campanha de divulgação parlamentar. Decidi manter "média" — um
+julgamento que registrei como decisão minha, não como resultado do
+algoritmo.
+
+**O principal aprendizado: o LLM colapsa para respostas seguras.** Antes de
+rodar a avaliação, eu esperava que divergências entre LLM e rotulagem
+humana fossem majoritariamente ruído. Não foram: o LLM classificou "média"
+em 70% dos 50 casos e "combinação" em 84%, quase independentemente do caso
+real — kappa de 0,231, concordância "razoável", não "substancial" (Landis &
+Koch, 1977). Isso muda a próxima iteração do projeto: o problema não é
+falta de dados de treino nem um detalhe qualquer de prompt, é o LLM
+convergindo para a opção que raramente está claramente errada. A correção
+que proponho — injetar os limiares da rubrica no prompt — ataca essa causa
+específica, não um sintoma genérico de "melhorar o prompt".
+
 ## Relatório técnico completo
 
 O paper técnico (Quarto + LaTeX, todas as 6 fases do CRISP-DM) está em
