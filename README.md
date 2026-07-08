@@ -7,7 +7,7 @@ com saída estruturada e validação humana.
 ## Contexto
 
 Trabalho final da disciplina **AI Applications**, MBA em **AI for Business**
-— Professor Vítor Wilher (Análise Macro). Autor: **Alisson Machado**.
+Professor Vítor Wilher (Análise Macro). Autor: **Alisson Machado Sousa**.
 
 ## Mapa do CRISP-DM
 
