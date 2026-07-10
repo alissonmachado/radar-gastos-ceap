@@ -109,10 +109,10 @@ cidadã nunca para decidir sozinho o que é atípico.
 ## Decisões de projeto e aprendizados
 
 Registro aqui, em primeira pessoa, algumas decisões que moldaram o que este
-pipeline faz e não faz — e um erro que encontrei no caminho.
+pipeline faz e não faz e um erro que encontrei no caminho.
 
 **Por que CEAP e não DataSUS/FNS.** Cheguei a considerar repasses de saúde
-(DataSUS/FNS) como domínio do trabalho — volume comparável, mesmo tipo de
+(DataSUS/FNS) como domínio do trabalho volume comparável, mesmo tipo de
 problema. Escolhi CEAP porque os arquivos anuais da Câmara já vêm num
 formato único e estável (`Ano-{ano}.csv.zip`), enquanto dados de saúde
 exigiriam integrar múltiplas fontes antes de qualquer análise. Com o prazo
@@ -148,7 +148,7 @@ revisei os 2 casos em que isso mudava o resultado (ver
 `reports/criterio_rotulagem.md`). Um deles, Bruno Ganem, é um caso de
 fronteira real: o valor do pico justificaria "alta" pela regra mecânica,
 mas a concentração em fornecedor de anúncios no Facebook é um padrão comum
-de campanha de divulgação parlamentar. Decidi manter "média" — um
+de campanha de divulgação parlamentar. Decidi manter "média" um
 julgamento que registrei como decisão minha, não como resultado do
 algoritmo.
 
