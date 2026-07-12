@@ -168,3 +168,6 @@ específica, não um sintoma genérico de "melhorar o prompt".
 O paper técnico (Quarto + LaTeX, todas as 6 fases do CRISP-DM) está em
 [`reports/paper/trabalho_final.pdf`](reports/paper/trabalho_final.pdf)
 (fonte: [`reports/paper/trabalho_final.qmd`](reports/paper/trabalho_final.qmd)).
+Versão em inglês (mesmo pipeline, mesmos números, tradução integral):
+[`reports/paper/trabalho_final_en.pdf`](reports/paper/trabalho_final_en.pdf)
+(fonte: [`reports/paper/trabalho_final_en.qmd`](reports/paper/trabalho_final_en.qmd)).
