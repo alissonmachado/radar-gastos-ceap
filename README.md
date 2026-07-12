@@ -1,13 +1,13 @@
 # Radar de Gastos da Cota Parlamentar (CEAP)
 
-Pipeline CRISP-DM que prioriza nunca acusa despesas atípicas da Cota
+Pipeline CRISP-DM que prioriza — nunca acusa — despesas atípicas da Cota
 Parlamentar (CEAP) usando detecção estatística robusta e triagem por LLM
 com saída estruturada e validação humana.
 
 ## Contexto
 
 Trabalho final da disciplina **AI Applications**, MBA em **AI for Business**
-Professor Vítor Wilher (Análise Macro). Autor: **Alisson Machado Sousa**.
+— Professor Vítor Wilher (Análise Macro). Autor: **Alisson Machado Sousa**.
 
 ## Mapa do CRISP-DM
 
@@ -31,7 +31,7 @@ Documentação de apoio: [`reports/revisao_literatura.md`](reports/revisao_liter
 - **284.845 despesas** analisadas (jan/2025–jul/2026), R$ 345.090.001,79.
 - **253 deputados** (de 601) sinalizados por 2 ou mais dos 3 detectores
   estatísticos independentes; **26** pelos 3 simultaneamente.
-- Avaliação do LLM contra rotulagem humana genuína (n=50): **Cohen's kappa
+- Avaliação do LLM contra rotulagem humana genuína (n=50): **kappa de Cohen
   = 0,231**, acurácia 40%. O achado central: o LLM **colapsa** para
   severidade "média" em 70% dos casos e categoria "combinação" em 84%,
   quase independentemente do sinal real — um viés sistemático, não ruído.
@@ -86,7 +86,7 @@ quarto render trabalho_final.qmd --to pdf
 ```
 
 `src/rotulos_humanos.csv` contém rotulagem humana genuína já preenchida
-neste repositório (não é regenerada por script) ver a metodologia em duas
+neste repositório (não é regenerada por script) — ver a metodologia em duas
 etapas e a distinção com a rubrica automática em
 [`reports/criterio_rotulagem.md`](reports/criterio_rotulagem.md).
 
@@ -104,15 +104,15 @@ menos sensível a valores extremos que média/desvio padrão comuns):
 Um deputado sinalizado por 2 ou mais métodos distintos entra na lista
 priorizada. Os casos priorizados são então classificados por um LLM (Claude,
 saída estruturada via Pydantic) para severidade e explicação em linguagem
-cidadã nunca para decidir sozinho o que é atípico.
+cidadã — nunca para decidir sozinho o que é atípico.
 
 ## Decisões de projeto e aprendizados
 
 Registro aqui, em primeira pessoa, algumas decisões que moldaram o que este
-pipeline faz e não faz e um erro que encontrei no caminho.
+pipeline faz e não faz — e um erro que encontrei no caminho.
 
 **Por que CEAP e não DataSUS/FNS.** Cheguei a considerar repasses de saúde
-(DataSUS/FNS) como domínio do trabalho volume comparável, mesmo tipo de
+(DataSUS/FNS) como domínio do trabalho — volume comparável, mesmo tipo de
 problema. Escolhi CEAP porque os arquivos anuais da Câmara já vêm num
 formato único e estável (`Ano-{ano}.csv.zip`), enquanto dados de saúde
 exigiriam integrar múltiplas fontes antes de qualquer análise. Com o prazo
@@ -127,16 +127,16 @@ uma frase para um jornalista ou auditor não serve — mesmo que tivesse
 desempenho melhor em alguma métrica. Mediana e MAD são conferíveis à mão.
 
 **"O LLM nunca acusa" é uma decisão de design, não uma limitação técnica.**
-O LLM não decide o que é atípico isso já foi decidido estatisticamente
+O LLM não decide o que é atípico — isso já foi apurado estatisticamente
 antes de qualquer prompt. Ele só classifica severidade e explica em
 linguagem simples, com uma regra absoluta no *system prompt*
 (`src/llm_triage.py`) proibindo qualquer insinuação de irregularidade. O
-custo de um falso positivo aqui não é um erro de classificação qualquer
+custo de um falso positivo aqui não é um erro de classificação qualquer —
 é o nome de uma pessoa associado a uma acusação que ela nunca cometeu.
 
 **O bug dos 14 dígitos do CNPJ.** Na fase de exploração, minha primeira
 implementação do filtro de "CNPJ genérico" comparava contra códigos de 12
-dígitos, não 14 resultado: zero registros encontrados, quando na verdade
+dígitos, não 14 — resultado: zero registros encontrados, quando na verdade
 existem 8.527. Só percebi o erro porque um resultado zero era suspeito
 demais para aceitar sem checar. A correção está registrada em
 `reports/data_understanding.md`.
@@ -148,7 +148,7 @@ revisei os 2 casos em que isso mudava o resultado (ver
 `reports/criterio_rotulagem.md`). Um deles, Bruno Ganem, é um caso de
 fronteira real: o valor do pico justificaria "alta" pela regra mecânica,
 mas a concentração em fornecedor de anúncios no Facebook é um padrão comum
-de campanha de divulgação parlamentar. Decidi manter "média" um
+de campanha de divulgação parlamentar. Optei por manter "média" — um
 julgamento que registrei como decisão minha, não como resultado do
 algoritmo.
 
@@ -156,11 +156,11 @@ algoritmo.
 rodar a avaliação, eu esperava que divergências entre LLM e rotulagem
 humana fossem majoritariamente ruído. Não foram: o LLM classificou "média"
 em 70% dos 50 casos e "combinação" em 84%, quase independentemente do caso
-real kappa de 0,231, concordância "razoável", não "substancial" (Landis &
+real — kappa de 0,231, concordância "razoável", não "substancial" (Landis &
 Koch, 1977). Isso muda a próxima iteração do projeto: o problema não é
 falta de dados de treino nem um detalhe qualquer de prompt, é o LLM
 convergindo para a opção que raramente está claramente errada. A correção
-que proponho injetar os limiares da rubrica no prompt — ataca essa causa
+que proponho — injetar os limiares da rubrica no prompt — ataca essa causa
 específica, não um sintoma genérico de "melhorar o prompt".
 
 ## Relatório técnico completo

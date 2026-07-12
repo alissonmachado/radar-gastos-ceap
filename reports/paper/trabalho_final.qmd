@@ -81,7 +81,7 @@ gasto atípicos com três métodos estatísticos independentes e robustos
 classificar severidade e explicar cada caso em linguagem cidadã, sem nunca
 julgar reputação de pessoas; e (iii) avalia o LLM em múltiplas camadas ---
 consistência contra uma rubrica determinística, e concordância contra
-rotulagem humana genuína (Cohen's kappa = 0,231; acurácia 40\%). O achado
+rotulagem humana genuína (kappa de Cohen = 0,231; acurácia 40\%). O achado
 central da avaliação é um viés de colapso do LLM: 70\% dos casos foram
 classificados como severidade "média" e 84\% como categoria "combinação",
 quase independentemente do sinal real --- não ruído aleatório, mas uma
@@ -161,8 +161,8 @@ despesa é irregular --- isso exige investigação humana, contexto e
 contraditório. O que este trabalho entrega é um ranking estatístico objetivo
 de casos que fogem do padrão esperado, complementado por uma camada de
 classificação e explicação em linguagem cidadã via LLM, sempre com saída
-estruturada e validada, para que a atenção limitada de quem fiscaliza seja
-alocada de forma mais eficiente.
+estruturada e validada. O objetivo final é alocar de forma mais eficiente a
+atenção limitada de quem fiscaliza.
 
 # Revisão da Literatura
 
@@ -171,13 +171,14 @@ O precedente direto deste trabalho, no mesmo domínio (gastos CEAP), é a
 iniciado em 2016 por Irio Musskopf e Eduardo Cuducos que usa um robô de
 aprendizado de máquina ("Rosie") para calcular uma probabilidade de
 irregularidade em reembolsos da Cota Parlamentar e publicar os achados. Este
-trabalho se diferencia em três pontos: (i) usa detecção estatística robusta
-(mediana/MAD) como camada auditável antes de qualquer classificação, em vez
-de um único score de probabilidade; (ii) usa um LLM apenas para classificar
-e explicar em linguagem cidadã os casos já sinalizados estatisticamente ---
-nunca para decidir sozinho o que é atípico; e (iii) inclui triangulação
-entre métodos independentes e avaliação de concordância humano-LLM (Cohen's
-kappa) como camada explícita de validação, ausente na Rosie original.
+trabalho se diferencia em três pontos. Primeiro, usa detecção estatística
+robusta (mediana/MAD) como camada auditável antes de qualquer classificação,
+em vez de um único score de probabilidade. Segundo, usa um LLM apenas para
+classificar e explicar em linguagem cidadã os casos já sinalizados
+estatisticamente --- nunca para decidir sozinho o que é atípico. Terceiro,
+inclui triangulação entre métodos independentes e avaliação de concordância
+humano-LLM (coeficiente kappa de Cohen) como camada explícita de validação,
+ausente na Rosie original.
 
 A camada estatística deste trabalho segue **Iglewicz & Hoaglin (1993)**
 [@iglewicz1993outliers]: mediana e desvio absoluto mediano (MAD) como
@@ -217,7 +218,7 @@ cálculo de concentração por fornecedor).
 
 A etapa de classificação por LLM tem custo medido, não estimado por
 analogia: usando a API de contagem de tokens da Anthropic (gratuita) sobre
-os prompts reais enviados e as respostas reais recebidas para os
+os prompts efetivamente enviados e as respostas recebidas para os
 `{python} custo['n_casos']` casos já classificados, o custo total foi de
 US\$ `{python} f"{custo['custo_total_usd']:.4f}"`, ou **US\$
 `{python} f"{custo['custo_medio_por_caso_usd']:.5f}"` por caso** (modelo
@@ -258,9 +259,9 @@ explicitadas, porque moldam o que o pipeline prioriza e o que deixa de fora.
 outro domínio de gasto público de volume comparável, citado em Próximos
 Passos como extensão --- porque os arquivos anuais da Câmara já vêm num
 formato único e estável, enquanto dados de saúde exigiriam integrar
-múltiplas fontes antes de qualquer análise. Dado o prazo do trabalho final,
-priorizei entregar um pipeline completo (dado bruto → paper) a aprofundar a
-exploração de um domínio mais complexo de integrar.
+múltiplas fontes antes de qualquer análise. Diante do prazo do trabalho
+final, priorizei entregar um pipeline completo (dado bruto → paper) a
+aprofundar a exploração de um domínio mais complexo de integrar.
 
 **Método de detecção**: escolhi mediana + MAD [@iglewicz1993outliers] em vez
 de um modelo de machine learning (ex.: isolation forest) para os três
@@ -272,7 +273,7 @@ conferíveis à mão por qualquer pessoa com uma calculadora.
 
 **Divisão de trabalho entre estatística e LLM**: "o LLM nunca acusa" é uma
 decisão de design, não uma limitação técnica contornável. O LLM não decide
-o que é atípico --- isso já foi decidido estatisticamente antes de qualquer
+o que é atípico --- isso já foi apurado estatisticamente antes de qualquer
 prompt --- e o *system prompt* de `src/llm_triage.py` proíbe explicitamente
 qualquer insinuação de irregularidade. O custo de um falso positivo aqui não
 é um erro de classificação qualquer: é o nome de uma pessoa associado a uma
@@ -296,6 +297,13 @@ julgamento que a rubrica sozinha não captura.
 # Implementação
 
 ## Configuração do ambiente
+
+Esta seção percorre, em código, os mesmos passos executados pelos scripts
+reais em `src/`: leitura de credenciais, preparação dos dados, os três
+detectores estatísticos e a chamada ao LLM com saída estruturada. O primeiro
+passo é a leitura da chave de API a partir do ambiente (`.env`) --- nunca
+escrita diretamente no código-fonte, conforme a regra de segredos do
+projeto.
 
 ```{python}
 #| echo: true
@@ -457,7 +465,8 @@ for _, row in top10.iterrows():
 print(r"""\bottomrule
 \end{tabular}
 \begin{tablenotes}\footnotesize
-\item Fonte: reports/lista\_priorizada.csv (src/deploy.py). Lista completa com 253 casos no arquivo original.
+\item Fonte: elaboração própria a partir dos dados abertos da Câmara dos Deputados (CEAP, 2025-2026).
+\item Dados via \texttt{reports/lista\_priorizada.csv} (\texttt{src/deploy.py}). Lista completa com 253 casos no arquivo original.
 \end{tablenotes}
 \end{threeparttable}
 \end{table}""")
@@ -497,7 +506,8 @@ print(rf"Concentração fornecedor (HHI) & {linhas_hhi[0]:,} & {linhas_hhi[1]:,}
 print(r"""\bottomrule
 \end{tabular}
 \begin{tablenotes}\footnotesize
-\item Limiares: score 3,0/3,5/4,0; HHI 0,15/0,25/0,35. Recomputado a partir dos CSVs reais de data/processed/.
+\item Fonte: elaboração própria a partir dos dados abertos da Câmara dos Deputados (CEAP, 2025-2026).
+\item Limiares: score 3,0/3,5/4,0; HHI 0,15/0,25/0,35. Recomputado ao vivo a partir dos CSVs de \texttt{data/processed/}.
 \end{tablenotes}
 \end{threeparttable}
 \end{table}""")
@@ -531,8 +541,8 @@ pct_combinacao_llm = (merged_humano["categoria_anomalia"] == "combinacao").mean(
 **Achado central desta avaliação: o LLM colapsa para respostas "seguras"
 em vez de refletir o sinal real.** Comparado contra a rotulagem humana
 genuína (n=`{python} len(merged_humano)`), o LLM atinge apenas
-`{python} f"{accuracy_humano:.0%}"` de acurácia de severidade e **Cohen's
-kappa = `{python} f"{kappa_humano:.3f}"`** (Tabela @tbl-confusao) --- na
+`{python} f"{accuracy_humano:.0%}"` de acurácia de severidade e **kappa de
+Cohen = `{python} f"{kappa_humano:.3f}"`** (Tabela @tbl-confusao) --- na
 escala de Landis & Koch [@landis1977measurement], concordância "razoável",
 não "substancial". A concordância de categoria é ainda menor:
 `{python} f"{concordancia_cat_humano:.0%}"`.
@@ -564,7 +574,8 @@ for idx, row in confusao_humano.iterrows():
 print(r"""\bottomrule
 \end{tabular}
 \begin{tablenotes}\footnotesize
-\item Fonte: reports/rotulos\_humanos.csv x reports/triage\_llm.csv (src/evaluate\_llm.py), recomputado ao vivo.
+\item Fonte: elaboração própria a partir dos dados abertos da Câmara dos Deputados (CEAP, 2025-2026).
+\item Confronto entre \texttt{reports/rotulos\_humanos.csv} e \texttt{reports/triage\_llm.csv} (\texttt{src/evaluate\_llm.py}), recomputado ao vivo.
 \end{tablenotes}
 \end{threeparttable}
 \end{table}""")
@@ -573,7 +584,7 @@ print(r"""\bottomrule
 ```{python}
 #| echo: false
 #| label: fig-vies
-#| fig-cap: "Distribuição de severidade: rótulo humano vs. classificação do LLM (n=50)."
+#| fig-cap: "Distribuição de severidade: rótulo humano vs. classificação do LLM (n=50). Fonte: elaboração própria a partir dos dados abertos da Câmara dos Deputados (CEAP, 2025-2026)."
 import numpy as np
 
 dist_humano = merged_humano["severidade_humana"].value_counts().reindex(SEVERIDADES, fill_value=0)
@@ -646,8 +657,8 @@ para respostas "seguras" (kappa = `{python} f"{kappa_humano:.3f}"`, escala
 em vez de refletir o sinal real de cada caso.
 
 A parte estatística do pipeline (três detectores + triangulação) é
-reprodutível e reduz `{python} n_deputados_total` deputados a
-`{python} n_alta_confianca` casos de forma auditável --- isso já elimina a
+reprodutível e auditável: a redução a
+`{python} n_alta_confianca` casos prioritários, descrita acima, já elimina a
 necessidade de revisar manualmente centenas de milhares de linhas. A
 classificação por LLM, por outro lado, não deveria ser usada hoje sem
 revisão humana da `explicacao_cidada` gerada para cada caso: um kappa de
