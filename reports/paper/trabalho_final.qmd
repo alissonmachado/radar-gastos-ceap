@@ -71,25 +71,26 @@ execute:
 \setlength{\parindent}{0pt}
 
 \noindent\textbf{Resumo.} A Cota para o Exercício da Atividade Parlamentar
-(CEAP) soma 284.845 despesas e R\$ 345.090.001,79 em 19 meses (jan/2025 a
-jul/2026) --- volume humanamente inauditável um lançamento de cada vez. Este
-trabalho constrói um pipeline CRISP-DM completo que (i) detecta padrões de
-gasto atípicos com três métodos estatísticos independentes e robustos
-(mediana/MAD, HHI de concentração de fornecedor), reduzindo 601 deputados a
-253 sinalizados por 2+ métodos e 26 pelos 3 simultaneamente; (ii) usa um LLM
-(Claude, via API Anthropic) com saída estruturada via Pydantic para
-classificar severidade e explicar cada caso em linguagem cidadã, sem nunca
-julgar reputação de pessoas; e (iii) avalia o LLM em múltiplas camadas ---
-consistência contra uma rubrica determinística, e concordância contra
+--- CEAP --- soma 284.845 despesas e R\$ 345.090.001,79 em 19 meses
+(jan/2025 a jul/2026), longe do que qualquer pessoa consegue revisar
+despesa por despesa. Este trabalho constrói um pipeline CRISP-DM completo
+em três etapas. Primeiro, detecta padrões de gasto atípicos com três
+métodos estatísticos independentes e robustos (mediana/MAD, HHI de
+concentração de fornecedor), reduzindo 601 deputados a 253 sinalizados por
+2+ métodos e 26 pelos 3 simultaneamente. Segundo, usa um LLM (Claude, via
+API Anthropic) com saída estruturada via Pydantic para classificar
+severidade e explicar cada caso em linguagem cidadã, sem nunca julgar
+reputação de pessoas. Terceiro, avalia o LLM em múltiplas camadas:
+consistência contra uma rubrica determinística e concordância contra
 rotulagem humana genuína (kappa de Cohen = 0,231; acurácia 40\%). O achado
 central da avaliação é um viés de colapso do LLM: 70\% dos casos foram
 classificados como severidade "média" e 84\% como categoria "combinação",
 quase independentemente do sinal real --- não ruído aleatório, mas uma
 tendência sistemática a respostas "seguras". O custo médio de classificação
-por caso é de US\$ 0,00525 (modelo claude-sonnet-4-6), tornando a extensão
-do pipeline a milhares de casos financeiramente trivial. Todo número citado
-neste resumo também é gerado por um chunk de código executável no corpo
-deste documento.
+por caso é de US\$ 0,00525 (modelo claude-sonnet-4-6), o que torna barato
+escalar a classificação a milhares de casos. Todo número citado neste
+resumo também é gerado por um chunk de código executável no corpo deste
+documento.
 
 \smallskip
 \noindent\textbf{Palavras-chave:} Cota Parlamentar; Detecção de Anomalias;
@@ -160,9 +161,9 @@ O objetivo é **priorizar, não acusar**. O pipeline não determina se uma
 despesa é irregular --- isso exige investigação humana, contexto e
 contraditório. O que este trabalho entrega é um ranking estatístico objetivo
 de casos que fogem do padrão esperado, complementado por uma camada de
-classificação e explicação em linguagem cidadã via LLM, sempre com saída
-estruturada e validada. O objetivo final é alocar de forma mais eficiente a
-atenção limitada de quem fiscaliza.
+classificação e explicação em linguagem acessível ao cidadão comum via
+LLM, sempre com saída estruturada e validada. O objetivo final é alocar de
+forma mais eficiente a atenção limitada de quem fiscaliza.
 
 # Revisão da Literatura
 
@@ -174,8 +175,9 @@ irregularidade em reembolsos da Cota Parlamentar e publicar os achados. Este
 trabalho se diferencia em três pontos. Primeiro, usa detecção estatística
 robusta (mediana/MAD) como camada auditável antes de qualquer classificação,
 em vez de um único score de probabilidade. Segundo, usa um LLM apenas para
-classificar e explicar em linguagem cidadã os casos já sinalizados
-estatisticamente --- nunca para decidir sozinho o que é atípico. Terceiro,
+classificar e explicar, em termos que qualquer leitor consegue entender, os
+casos já sinalizados estatisticamente --- nunca para decidir sozinho o que
+é atípico. Terceiro,
 inclui triangulação entre métodos independentes e avaliação de concordância
 humano-LLM (coeficiente kappa de Cohen) como camada explícita de validação,
 ausente na Rosie original.
@@ -198,7 +200,7 @@ interpretado pela escala de referência de **Landis & Koch (1977)**
 [@landis1977measurement].
 
 A etapa de classificação por LLM segue a documentação oficial da API
-Anthropic para saída estruturada via Pydantic [@anthropic_docs].
+Anthropic para saída validada por schema Pydantic [@anthropic_docs].
 
 # Metodologia e Dados
 
@@ -255,9 +257,9 @@ estatisticamente; ele nunca decide sozinho o que é atípico.
 As decisões abaixo não são neutras nem inevitáveis --- valem ser
 explicitadas, porque moldam o que o pipeline prioriza e o que deixa de fora.
 
-**Domínio**: optei por CEAP em vez de gastos de saúde (DataSUS/FNS) ---
-outro domínio de gasto público de volume comparável, citado em Próximos
-Passos como extensão --- porque os arquivos anuais da Câmara já vêm num
+**Domínio**: optei por CEAP em vez de gastos de saúde (DataSUS/FNS), outro
+domínio de gasto público de volume comparável que cito em Próximos Passos
+como extensão. Escolhi CEAP porque os arquivos anuais da Câmara já vêm num
 formato único e estável, enquanto dados de saúde exigiriam integrar
 múltiplas fontes antes de qualquer análise. Diante do prazo do trabalho
 final, priorizei entregar um pipeline completo (dado bruto → paper) a
@@ -273,11 +275,11 @@ conferíveis à mão por qualquer pessoa com uma calculadora.
 
 **Divisão de trabalho entre estatística e LLM**: "o LLM nunca acusa" é uma
 decisão de design, não uma limitação técnica contornável. O LLM não decide
-o que é atípico --- isso já foi apurado estatisticamente antes de qualquer
-prompt --- e o *system prompt* de `src/llm_triage.py` proíbe explicitamente
-qualquer insinuação de irregularidade. O custo de um falso positivo aqui não
-é um erro de classificação qualquer: é o nome de uma pessoa associado a uma
-acusação que ela nunca cometeu.
+o que é atípico: isso já foi apurado estatisticamente antes de qualquer
+prompt. O *system prompt* de `src/llm_triage.py` proíbe explicitamente
+qualquer insinuação de irregularidade, porque o custo de um falso positivo
+aqui não é um erro de classificação qualquer: é o nome de uma pessoa
+associado a uma acusação que ela nunca cometeu.
 
 **Erro encontrado durante a exploração**: a primeira implementação do filtro
 de CNPJ genérico comparava contra códigos de 12 dígitos em vez de 14,
@@ -288,11 +290,11 @@ resultado zero era suspeito demais para aceitar sem conferir.
 **Rotulagem humana em duas passadas**: a primeira rotulagem dos 50 casos de
 avaliação usou apenas o sinal de categoria×pares, um critério mais restrito
 do que a definição da rubrica (`reports/criterio_rotulagem.md`). A segunda
-passada revisou os 2 casos em que isso mudava o resultado; um deles, Bruno
+passada revisou os 2 casos em que isso mudava o resultado. Um deles, Bruno
 Ganem, permanece um caso de fronteira decidido manualmente (severidade
-"média", não "alta"), porque a concentração em fornecedor de anúncios no
-Facebook é um padrão comum de campanha de divulgação parlamentar --- um
-julgamento que a rubrica sozinha não captura.
+"média", não "alta"): a concentração em fornecedor de anúncios no Facebook
+é um padrão comum de campanha de divulgação parlamentar, um julgamento que
+a rubrica sozinha não captura.
 
 # Implementação
 
@@ -538,7 +540,7 @@ pct_media_llm = (merged_humano["severidade"] == "media").mean()
 pct_combinacao_llm = (merged_humano["categoria_anomalia"] == "combinacao").mean()
 ```
 
-**Achado central desta avaliação: o LLM colapsa para respostas "seguras"
+**Achado central desta avaliação: o LLM colapsa para o rótulo mais cômodo
 em vez de refletir o sinal real.** Comparado contra a rotulagem humana
 genuína (n=`{python} len(merged_humano)`), o LLM atinge apenas
 `{python} f"{accuracy_humano:.0%}"` de acurácia de severidade e **kappa de
@@ -612,14 +614,14 @@ diretamente no prompt do LLM (R\$ 50 mil / R\$ 10 mil / HHI 0,5 / 5+ flags /
 mês parcial), para que a classificação deixe de ser um julgamento
 qualitativo às cegas e passe a ancorar-se nos mesmos números que já orientam
 a rubrica determinística --- sem transferir ao LLM a decisão sobre o que é
-atípico, apenas dando-lhe o critério explícito para classificar com mais
-disciplina.
+atípico, apenas dando-lhe o critério explícito para decidir com mais
+rigor.
 
 ## Custo por caso e plano de atualização
 
 O custo de US\$ `{python} f"{custo['custo_medio_por_caso_usd']:.5f}"` por
-caso (medido via `count_tokens`, não estimado por analogia) torna a
-extensão do pipeline financeiramente trivial. **Plano de atualização**: a
+caso (medido via `count_tokens`, não estimado por analogia) é desprezível
+em escala. **Plano de atualização**: a
 Câmara atualiza os dados diariamente, mas não há necessidade de reprocessar
 nessa frequência --- uma cadência mensal ou trimestral é suficiente. Ao
 reprocessar, revisar se os limiares de `src/model.py`
@@ -648,11 +650,12 @@ Este trabalho entregou um pipeline CRISP-DM completo e reprodutível para
 priorizar despesas atípicas da Cota Parlamentar: três detectores estatísticos
 robustos reduzem `{python} n_deputados_total` deputados a
 `{python} n_alta_confianca` casos de atenção prioritária; um LLM com saída
-estruturada via Pydantic classifica e explica cada caso em linguagem cidadã,
-a um custo de US\$ `{python} f"{custo['custo_medio_por_caso_usd']:.5f}"` por
-caso; e uma avaliação em múltiplas camadas (sensibilidade, triangulação,
-rubrica determinística, rotulagem humana) mostra que o LLM ainda colapsa
-para respostas "seguras" (kappa = `{python} f"{kappa_humano:.3f}"`, escala
+validada por schema Pydantic classifica e explica cada um em linguagem
+simples, sem jargão técnico, a um custo de US\$
+`{python} f"{custo['custo_medio_por_caso_usd']:.5f}"` por caso; e uma
+avaliação em múltiplas camadas (sensibilidade, triangulação, rubrica
+determinística, rotulagem humana) mostra que o LLM ainda pende para o
+julgamento mais cauteloso (kappa = `{python} f"{kappa_humano:.3f}"`, escala
 "razoável" e não "substancial" segundo Landis & Koch [@landis1977measurement])
 em vez de refletir o sinal real de cada caso.
 
@@ -661,7 +664,7 @@ reprodutível e auditável: a redução a
 `{python} n_alta_confianca` casos prioritários, descrita acima, já elimina a
 necessidade de revisar manualmente centenas de milhares de linhas. A
 classificação por LLM, por outro lado, não deveria ser usada hoje sem
-revisão humana da `explicacao_cidada` gerada para cada caso: um kappa de
+revisão humana da `explicacao_cidada` que ele gera: um kappa de
 `{python} f"{kappa_humano:.3f}"` é baixo demais para tratar a saída do LLM
 como veredito. A próxima iteração descrita em Próximos Passos --- injetar
 os limiares da rubrica no prompt --- ataca essa causa específica; até ela
