@@ -1,14 +1,18 @@
 ---
 lang: pt-BR
-bibliography: ../../referencias.bib
+title: "Radar de Gastos da Cota Parlamentar: Priorização Estatística com Triagem por LLM e Validação Humana"
 format:
   pdf:
     pdf-engine: xelatex
     toc: false
     number-sections: true
+    mainfont: "Times New Roman"
     geometry:
-      - margin=2.5cm
-    fontsize: 11pt
+      - top=3cm
+      - left=3cm
+      - right=2cm
+      - bottom=2cm
+    fontsize: 12pt
     code-overflow: wrap
     code-block-bg: "#F7F7F7"
     code-block-border-left: false
@@ -24,12 +28,19 @@ header-includes:
     \usepackage{booktabs}
     \usepackage{threeparttable}
     \usepackage{caption}
+    \usepackage{setspace}
+    \usepackage{indentfirst}
+    \usepackage{array}
+    \captionsetup{labelsep=endash,font=small,labelfont=bf}
     \captionsetup[table]{skip=4pt}
     \renewcommand{\maketitle}{}
-    \AtBeginEnvironment{Shaded}{\footnotesize}
-    \AtBeginEnvironment{verbatim}{\footnotesize}
-    \AtBeginEnvironment{longtable}{\small}
-    \AtBeginEnvironment{tabular}{\small}
+    \onehalfspacing
+    \setlength{\parindent}{1.25cm}
+    \AtBeginEnvironment{Shaded}{\footnotesize\singlespacing}
+    \AtBeginEnvironment{verbatim}{\footnotesize\singlespacing}
+    \AtBeginEnvironment{longtable}{\small\singlespacing}
+    \AtBeginEnvironment{tabular}{\small\singlespacing}
+    \AtBeginEnvironment{quote}{\footnotesize\singlespacing}
 execute:
   eval: true
   echo: true
@@ -38,13 +49,19 @@ execute:
 ---
 
 ```{=latex}
+% ===== CAPA (ABNT NBR 14724) =====
 \begin{titlepage}
 \thispagestyle{empty}
 \centering
 
+MBA em AI for Business --- Análise Macro\\
+Disciplina: AI Applications
+
+\vspace{2cm}
+
 \includegraphics[width=4cm]{AM.png}
 
-\vspace{0.8cm}
+\vspace{1.5cm}
 
 {\huge\bfseries Radar de Gastos da Cota Parlamentar: Priorização Estatística com Triagem por LLM e Validação Humana\par}
 
@@ -52,52 +69,131 @@ execute:
 
 {\Large Um pipeline CRISP-DM reprodutível para priorizar --- nunca acusar --- despesas atípicas da CEAP\par}
 
-\vspace{1.5em}
+\vspace{2cm}
 
-{\large Alisson Machado --- MBA AI Applications\par}
+{\large Alisson Machado\par}
+
+\vfill
+
+{\normalsize São Paulo\par}
+{\normalsize Julho de 2026\par}
+
+\end{titlepage}
+
+% ===== FOLHA DE ROSTO (ABNT NBR 14724) =====
+\begin{titlepage}
+\thispagestyle{empty}
+\centering
+
+{\large Alisson Machado\par}
+
+\vspace{3cm}
+
+{\huge\bfseries Radar de Gastos da Cota Parlamentar: Priorização Estatística com Triagem por LLM e Validação Humana\par}
+
+\vspace{1em}
+
+{\Large Um pipeline CRISP-DM reprodutível para priorizar --- nunca acusar --- despesas atípicas da CEAP\par}
+
+\vspace{2cm}
+
+\begin{flushright}
+\begin{minipage}{0.55\textwidth}
+\singlespacing
+\small
+Trabalho apresentado à disciplina AI Applications do MBA em AI for
+Business (Análise Macro), como requisito parcial para a conclusão do
+curso.
 
 \vspace{0.5em}
 
+Professor: Vítor Wilher.
+\end{minipage}
+\end{flushright}
+
+\vfill
+
+{\normalsize São Paulo\par}
 {\normalsize Julho de 2026\par}
 
-\vspace{0.2em}
-
-{\footnotesize Versão 1.0\par}
-
-\vspace{1.5em}
-
-\begin{minipage}{0.9\textwidth}
-\footnotesize
-\setlength{\parindent}{0pt}
-
-\noindent\textbf{Resumo.} A Cota para o Exercício da Atividade Parlamentar
---- CEAP --- soma 284.845 despesas e R\$ 345.090.001,79 em 19 meses
-(jan/2025 a jul/2026), longe do que qualquer pessoa consegue revisar
-despesa por despesa. Este trabalho constrói um pipeline CRISP-DM completo
-em três etapas. Primeiro, detecta padrões de gasto atípicos com três
-métodos estatísticos independentes e robustos (mediana/MAD, HHI de
-concentração de fornecedor), reduzindo 601 deputados a 253 sinalizados por
-2+ métodos e 26 pelos 3 simultaneamente. Segundo, usa um LLM (Claude, via
-API Anthropic) com saída estruturada via Pydantic para classificar
-severidade e explicar cada caso em linguagem cidadã, sem nunca julgar
-reputação de pessoas. Terceiro, avalia o LLM em múltiplas camadas:
-consistência contra uma rubrica determinística e concordância contra
-rotulagem humana genuína (kappa de Cohen = 0,231; acurácia 40\%). O achado
-central da avaliação é um viés de colapso do LLM: 70\% dos casos foram
-classificados como severidade "média" e 84\% como categoria "combinação",
-quase independentemente do sinal real --- não ruído aleatório, mas uma
-tendência sistemática a respostas "seguras". O custo médio de classificação
-por caso é de US\$ 0,00525 (modelo claude-sonnet-4-6), o que torna barato
-escalar a classificação a milhares de casos. Todo número citado neste
-resumo também é gerado por um chunk de código executável no corpo deste
-documento.
-
-\smallskip
-\noindent\textbf{Palavras-chave:} Cota Parlamentar; Detecção de Anomalias;
-Modelos de Linguagem; Saída Estruturada; CRISP-DM.
-\end{minipage}
-
 \end{titlepage}
+
+% ===== RESUMO (ABNT NBR 6028) =====
+\newpage
+\thispagestyle{empty}
+\begin{center}
+\textbf{RESUMO}
+\end{center}
+\vspace{1em}
+\setlength{\parindent}{0pt}
+\noindent
+A Cota para o Exercício da Atividade Parlamentar --- CEAP --- soma 284.845
+despesas e R\$ 345.090.001,79 em 19 meses (jan/2025 a jul/2026), longe do
+que qualquer pessoa consegue revisar despesa por despesa. Este trabalho
+constrói um pipeline CRISP-DM completo em três etapas. Primeiro, detecta
+padrões de gasto atípicos com três métodos estatísticos independentes e
+robustos (mediana/MAD, HHI de concentração de fornecedor), reduzindo 601
+deputados a 253 sinalizados por 2+ métodos e 26 pelos 3 simultaneamente.
+Segundo, usa um LLM (Claude, via API Anthropic) com saída estruturada via
+Pydantic para classificar severidade e explicar cada caso em linguagem
+cidadã, sem nunca julgar reputação de pessoas. Terceiro, avalia o LLM em
+múltiplas camadas: consistência contra uma rubrica determinística e
+concordância contra rotulagem humana genuína (kappa de Cohen = 0,231;
+acurácia 40\%). O achado central da avaliação é um viés de colapso do LLM:
+70\% dos casos foram classificados como severidade "média" e 84\% como
+categoria "combinação", quase independentemente do sinal real --- não
+ruído aleatório, mas uma tendência sistemática a respostas "seguras". O
+custo médio de classificação por caso é de US\$ 0,00525 (modelo
+claude-sonnet-4-6), o que torna barato escalar a classificação a milhares
+de casos. Todo número citado neste resumo também é gerado por um chunk de
+código executável no corpo deste documento.
+
+\vspace{1em}
+\noindent\textbf{Palavras-chave:} Cota Parlamentar. Detecção de Anomalias.
+Modelos de Linguagem. Saída Estruturada. CRISP-DM.
+
+% ===== ABSTRACT (ABNT NBR 14724) =====
+\newpage
+\thispagestyle{empty}
+\begin{center}
+\textbf{ABSTRACT}
+\end{center}
+\vspace{1em}
+\noindent
+The Parliamentary Activity Exercise Allowance --- CEAP --- totals 284,845
+expense records and R\$345,090,001.79 over 19 months (Jan/2025 to
+Jul/2026), far beyond what any single person can review entry by entry.
+This work builds a complete CRISP-DM pipeline in three stages. First, it
+detects anomalous spending patterns with three independent, robust
+statistical methods (median/MAD, supplier-concentration HHI), reducing 601
+legislators to 253 flagged by 2+ methods and 26 flagged by all three
+simultaneously. Second, it uses an LLM (Claude, via the Anthropic API)
+with Pydantic-structured output to classify severity and explain each
+case in citizen-facing language, without ever judging anyone's reputation.
+Third, it evaluates the LLM across multiple layers: consistency against a
+deterministic rubric and agreement against genuine human labeling
+(Cohen's kappa = 0.231; 40\% accuracy). The evaluation's central finding
+is an LLM collapse bias: 70\% of cases were classified as "medium"
+severity and 84\% as "combination" category, almost independently of the
+actual signal --- not random noise, but a systematic tendency toward
+"safe" answers. The average cost per classified case is US\$0.00525
+(model claude-sonnet-4-6), making it cheap to scale classification to
+thousands of cases.
+
+\vspace{1em}
+\noindent\textbf{Keywords:} Parliamentary Allowance. Anomaly Detection.
+Language Models. Structured Output. CRISP-DM.
+
+% ===== SUMÁRIO (ABNT NBR 6027) =====
+\newpage
+\thispagestyle{empty}
+\renewcommand{\contentsname}{SUMÁRIO}
+\tableofcontents
+
+\newpage
+\pagenumbering{arabic}
+\setcounter{page}{1}
+\setlength{\parindent}{1.25cm}
 ```
 
 ```{python}
@@ -139,7 +235,7 @@ n_tres_metodos = int((triangulacao["n_metodos_distintos"] == 3).sum())
 n_lista_priorizada = len(lista)
 ```
 
-# Introdução
+# INTRODUÇÃO
 
 A Câmara dos Deputados publica diariamente os gastos da Cota para o
 Exercício da Atividade Parlamentar (CEAP). No recorte deste projeto (jan/2025
@@ -165,10 +261,10 @@ classificação e explicação em linguagem acessível ao cidadão comum via
 LLM, sempre com saída estruturada e validada. O objetivo final é alocar de
 forma mais eficiente a atenção limitada de quem fiscaliza.
 
-# Revisão da Literatura
+# REVISÃO DA LITERATURA
 
 O precedente direto deste trabalho, no mesmo domínio (gastos CEAP), é a
-**Operação Serenata de Amor** [@musskopf2016serenata]: projeto open-source
+**Operação Serenata de Amor** (MUSSKOPF; CUDUCOS, 2016): projeto open-source
 iniciado em 2016 por Irio Musskopf e Eduardo Cuducos que usa um robô de
 aprendizado de máquina ("Rosie") para calcular uma probabilidade de
 irregularidade em reembolsos da Cota Parlamentar e publicar os achados. Este
@@ -182,27 +278,26 @@ inclui triangulação entre métodos independentes e avaliação de concordânci
 humano-LLM (coeficiente kappa de Cohen) como camada explícita de validação,
 ausente na Rosie original.
 
-A camada estatística deste trabalho segue **Iglewicz & Hoaglin (1993)**
-[@iglewicz1993outliers]: mediana e desvio absoluto mediano (MAD) como
+A camada estatística deste trabalho segue **Iglewicz e Hoaglin (1993)**:
+mediana e desvio absoluto mediano (MAD) como
 medidas robustas de tendência central e dispersão, e o "modified z-score"
 (fator 0,6745) como regra prática para sinalizar outliers --- escolha
 deliberada por ser menos sensível a caudas longas do que média/desvio padrão
 clássicos, um problema documentado nos próprios dados de gasto parlamentar.
 
 Para medir concentração de gasto em fornecedor único, usamos o **Índice de
-Herfindahl-Hirschman (HHI)** [@hirschman1964paternity], originalmente uma
+Herfindahl-Hirschman (HHI)** (HIRSCHMAN, 1964), originalmente uma
 medida de concentração de mercado em economia industrial, aqui reaproveitada
 para medir concentração de gasto por deputado.
 
 Para avaliar a concordância entre a classificação do LLM e a rotulagem
-humana, usamos o **coeficiente kappa de Cohen** [@cohen1960coefficient],
-interpretado pela escala de referência de **Landis & Koch (1977)**
-[@landis1977measurement].
+humana, usamos o **coeficiente kappa de Cohen** (COHEN, 1960),
+interpretado pela escala de referência de **Landis e Koch (1977)**.
 
 A etapa de classificação por LLM segue a documentação oficial da API
-Anthropic para saída validada por schema Pydantic [@anthropic_docs].
+Anthropic para saída validada por schema Pydantic (ANTHROPIC, 2026).
 
-# Metodologia e Dados
+# METODOLOGIA E DADOS
 
 ## Fontes e volume
 
@@ -265,7 +360,7 @@ múltiplas fontes antes de qualquer análise. Diante do prazo do trabalho
 final, priorizei entregar um pipeline completo (dado bruto → paper) a
 aprofundar a exploração de um domínio mais complexo de integrar.
 
-**Método de detecção**: escolhi mediana + MAD [@iglewicz1993outliers] em vez
+**Método de detecção**: escolhi mediana + MAD (IGLEWICZ; HOAGLIN, 1993) em vez
 de um modelo de machine learning (ex.: isolation forest) para os três
 detectores de `src/model.py`. Num domínio em que o resultado associa nomes
 de pessoas públicas a um ranking de atenção, um método cuja decisão não é
@@ -296,7 +391,7 @@ Ganem, permanece um caso de fronteira decidido manualmente (severidade
 é um padrão comum de campanha de divulgação parlamentar, um julgamento que
 a rubrica sozinha não captura.
 
-# Implementação
+# IMPLEMENTAÇÃO
 
 ## Configuração do ambiente
 
@@ -420,14 +515,13 @@ Todos os `{python} len(triage)` casos foram classificados com sucesso na
 primeira tentativa (`ok_tentativa_1`) --- nenhum retry de validação Pydantic
 foi necessário.
 
-# Resultados
+# RESULTADOS
 
 ## Lista priorizada
 
 ```{python}
 #| echo: false
 #| output: asis
-#| label: tbl-top10
 top10 = lista.head(10)
 
 import re
@@ -456,7 +550,7 @@ print(r"""\begin{table}[H]
 \begin{threeparttable}
 \caption{Top 10 casos priorizados por número de métodos convergentes.}
 \label{tbl-top10}
-\begin{tabular}{lcl}
+\begin{tabular}{p{3.5cm}>{\centering\arraybackslash}p{2cm}p{10cm}}
 \toprule
 Deputado & Métodos (0--3) & Motivo dominante \\
 \midrule
@@ -474,7 +568,7 @@ print(r"""\bottomrule
 \end{table}""")
 ```
 
-A Tabela @tbl-top10 mostra os casos de maior confiança: todos com os 3
+A Tabela `\ref{tbl-top10}`{=latex} mostra os casos de maior confiança: todos com os 3
 métodos estatísticos convergindo. A lista completa reduz o universo de 601
 deputados para `{python} n_alta_confianca` sinalizados por 2 ou mais
 métodos --- o "achado de negócio" central da fase de Modelagem/Avaliação.
@@ -484,7 +578,6 @@ métodos --- o "achado de negócio" central da fase de Modelagem/Avaliação.
 ```{python}
 #| echo: false
 #| output: asis
-#| label: tbl-sensibilidade
 thresholds_score = [3.0, 3.5, 4.0]
 thresholds_hhi = [0.15, 0.25, 0.35]
 
@@ -516,7 +609,7 @@ print(r"""\bottomrule
 ```
 
 A contagem cai de forma monotônica e gradual em todos os detectores (Tabela
-@tbl-sensibilidade) --- não há salto abrupto perto do limiar padrão,
+`\ref{tbl-sensibilidade}`{=latex}) --- não há salto abrupto perto do limiar padrão,
 indicando que a escolha de 3,5/0,25 não é um ponto artificialmente sensível.
 
 ## Avaliação do LLM: rubrica vs. humano
@@ -544,8 +637,8 @@ pct_combinacao_llm = (merged_humano["categoria_anomalia"] == "combinacao").mean(
 em vez de refletir o sinal real.** Comparado contra a rotulagem humana
 genuína (n=`{python} len(merged_humano)`), o LLM atinge apenas
 `{python} f"{accuracy_humano:.0%}"` de acurácia de severidade e **kappa de
-Cohen = `{python} f"{kappa_humano:.3f}"`** (Tabela @tbl-confusao) --- na
-escala de Landis & Koch [@landis1977measurement], concordância "razoável",
+Cohen = `{python} f"{kappa_humano:.3f}"`** (Tabela `\ref{tbl-confusao}`{=latex}) --- na
+escala de Landis e Koch (1977), concordância "razoável",
 não "substancial". A concordância de categoria é ainda menor:
 `{python} f"{concordancia_cat_humano:.0%}"`.
 
@@ -560,7 +653,6 @@ limiares, converge para o meio-termo aparentemente seguro.
 ```{python}
 #| echo: false
 #| output: asis
-#| label: tbl-confusao
 print(r"""\begin{table}[H]
 \centering
 \begin{threeparttable}
@@ -626,10 +718,10 @@ Câmara atualiza os dados diariamente, mas não há necessidade de reprocessar
 nessa frequência --- uma cadência mensal ou trimestral é suficiente. Ao
 reprocessar, revisar se os limiares de `src/model.py`
 (`SCORE_THRESHOLD = 3.5`, `HHI_THRESHOLD = 0.25`) continuam adequados à luz
-da análise de sensibilidade (Tabela @tbl-sensibilidade), já que o volume de
+da análise de sensibilidade (Tabela `\ref{tbl-sensibilidade}`{=latex}), já que o volume de
 flags pode crescer conforme mais meses de 2026 chegam.
 
-# Próximos Passos
+# PRÓXIMOS PASSOS
 
 - **Injetar a rubrica no prompt do LLM**: dar ao modelo os limiares
   numéricos explícitos (R\$ 50 mil, R\$ 10 mil, HHI 0,5, 5+ flags, mês
@@ -644,7 +736,7 @@ flags pode crescer conforme mais meses de 2026 chegam.
   seguida da renderização deste paper, entregando uma versão atualizada sem
   intervenção manual.
 
-# Conclusão
+# CONCLUSÃO
 
 Este trabalho entregou um pipeline CRISP-DM completo e reprodutível para
 priorizar despesas atípicas da Cota Parlamentar: três detectores estatísticos
@@ -656,7 +748,7 @@ simples, sem jargão técnico, a um custo de US\$
 avaliação em múltiplas camadas (sensibilidade, triangulação, rubrica
 determinística, rotulagem humana) mostra que o LLM ainda pende para o
 julgamento mais cauteloso (kappa = `{python} f"{kappa_humano:.3f}"`, escala
-"razoável" e não "substancial" segundo Landis & Koch [@landis1977measurement])
+"razoável" e não "substancial" segundo Landis e Koch, 1977)
 em vez de refletir o sinal real de cada caso.
 
 A parte estatística do pipeline (três detectores + triangulação) é
@@ -671,7 +763,41 @@ os limiares da rubrica no prompt --- ataca essa causa específica; até ela
 ser testada, o valor deste trabalho está na camada estatística, não na
 camada de linguagem.
 
-# Referências
+# REFERÊNCIAS
 
-::: {#refs}
-:::
+```{=latex}
+\begin{flushleft}
+\setlength{\parindent}{0pt}
+\singlespacing
+
+ANTHROPIC. \textbf{Anthropic API documentation}. 2026. Disponível em:
+\url{https://docs.anthropic.com}. Acesso em: 13 jul. 2026.
+
+\bigskip
+
+COHEN, Jacob. A coefficient of agreement for nominal scales.
+\textbf{Educational and Psychological Measurement}, v. 20, n. 1, p.
+37--46, 1960.
+
+\bigskip
+
+HIRSCHMAN, Albert O. The paternity of an index. \textbf{The American
+Economic Review}, v. 54, n. 5, p. 761--762, 1964.
+
+\bigskip
+
+IGLEWICZ, Boris; HOAGLIN, David C. \textbf{How to detect and handle
+outliers}. Milwaukee: ASQC Quality Press, 1993.
+
+\bigskip
+
+LANDIS, J. Richard; KOCH, Gary G. The measurement of observer agreement
+for categorical data. \textbf{Biometrics}, v. 33, n. 1, p. 159--174, 1977.
+
+\bigskip
+
+MUSSKOPF, Irio; CUDUCOS, Eduardo. \textbf{Operação Serenata de Amor}.
+2016. Disponível em: \url{https://serenata.ai/}. Acesso em: 13 jul. 2026.
+
+\end{flushleft}
+```
